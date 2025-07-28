@@ -1,0 +1,22 @@
+[2025-07-28 16:56:32] SUCCESS: Docker is installed
+[2025-07-28 16:56:32] SUCCESS: Docker daemon is running
+[2025-07-28 16:56:32] SUCCESS: Docker Compose is available
+[2025-07-28 16:56:32] SUCCESS: curl is installed
+[2025-07-28 16:56:32] SUCCESS: nc is installed
+[2025-07-28 16:56:32] SUCCESS: openssl is installed
+[2025-07-28 16:56:32] SUCCESS: git is installed
+[2025-07-28 16:56:32] SUCCESS: Sufficient disk space available
+[2025-07-28 16:56:32] STATUS: 🔍 Scanning for port conflicts and resolving...
+[2025-07-28 16:56:32] SUCCESS: ✅ Port 8000 available for api
+[2025-07-28 16:56:32] SUCCESS: ✅ Port 8501 available for docs_portal
+[2025-07-28 16:56:33] SUCCESS: ✅ Port 8502 available for testing_portal
+[2025-07-28 16:56:33] SUCCESS: ✅ Port 3000 available for frontend
+[2025-07-28 16:56:33] SUCCESS: ✅ Port 3001 available for grafana
+[2025-07-28 16:56:33] SUCCESS: ✅ Port 16686 available for jaeger
+[2025-07-28 16:56:33] SUCCESS: ✅ Port 9090 available for prometheus
+[2025-07-28 16:56:34] WARNING: 🔄 Port conflict resolved: postgres moved from 5432 to 5433
+[2025-07-28 16:56:34] WARNING: 🔄 Port conflict resolved: redis moved from 6379 to 6380
+[2025-07-28 16:56:34] STATUS: 📋 Port conflict resolution summary:\n  • postgres: 5432 → 5433\n  • redis: 6379 → 6380
+[2025-07-28 16:56:34] STATUS: 📝 Updating environment configuration with resolved ports...
+[2025-07-28 16:56:34] SUCCESS: Environment configuration updated with new ports
+[2025-07-28 16:56:34] WARNING: .env file already exists

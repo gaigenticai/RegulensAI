@@ -26,20 +26,30 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PLATFORM_NAME="Regulens AI Financial Compliance Platform"
 TEMP_ENV_FILE="$SCRIPT_DIR/.env.temp"
 
-# Service port configurations for smart conflict resolution
-declare -A SERVICE_PORTS=(
-    ["api"]="8000"
-    ["docs_portal"]="8501"
-    ["testing_portal"]="8502"
-    ["frontend"]="3000"
-    ["grafana"]="3001"
-    ["jaeger"]="16686"
-    ["prometheus"]="9090"
-    ["postgres"]="5432"
-    ["redis"]="6379"
+# Service port configurations for smart conflict resolution (Bash 3.2 compatible)
+# Format: service_name:port
+SERVICE_PORTS=(
+    "api:8000"
+    "docs_portal:8501"
+    "testing_portal:8502"
+    "frontend:3000"
+    "grafana:3001"
+    "jaeger:16686"
+    "prometheus:9090"
+    "postgres:5432"
+    "redis:6379"
 )
 
-declare -A ASSIGNED_PORTS=()
+# Store assigned ports as variables
+ASSIGNED_PORT_API=""
+ASSIGNED_PORT_DOCS_PORTAL=""
+ASSIGNED_PORT_TESTING_PORTAL=""
+ASSIGNED_PORT_FRONTEND=""
+ASSIGNED_PORT_GRAFANA=""
+ASSIGNED_PORT_JAEGER=""
+ASSIGNED_PORT_PROMETHEUS=""
+ASSIGNED_PORT_POSTGRES=""
+ASSIGNED_PORT_REDIS=""
 
 # ============================================================================
 # LOGGING FUNCTIONS
@@ -73,6 +83,11 @@ print_warning() {
 print_error() {
     echo -e "${RED}✗ $1${NC}"
     log "ERROR: $1"
+}
+
+print_status() {
+    echo -e "${BLUE}➤ $1${NC}"
+    log "STATUS: $1"
 }
 
 # ============================================================================
@@ -241,7 +256,7 @@ APP_VERSION=1.0.0
 APP_ENVIRONMENT=production
 DEBUG=false
 API_VERSION=v1
-API_PORT=8000
+API_PORT=${ASSIGNED_PORT_API:-8000}
 API_HOST=0.0.0.0
 
 # Security Configuration (GENERATED - DO NOT SHARE)
@@ -633,28 +648,28 @@ show_installation_summary() {
     echo -e "${GREEN}🎉 $PLATFORM_NAME has been successfully installed!${NC}"
     echo
     echo -e "${WHITE}📊 Core Platform Access:${NC}"
-    echo -e "  ${CYAN}• Main API:${NC}              http://localhost:${ASSIGNED_PORTS[api]:-8000}"
-    echo -e "  ${CYAN}• Health Check:${NC}          http://localhost:${ASSIGNED_PORTS[api]:-8000}/v1/health"
-    echo -e "  ${CYAN}• Platform Info:${NC}         http://localhost:${ASSIGNED_PORTS[api]:-8000}/v1/info"
+    echo -e "  ${CYAN}• Main API:${NC}              http://localhost:${ASSIGNED_PORT_API:-8000}"
+    echo -e "  ${CYAN}• Health Check:${NC}          http://localhost:${ASSIGNED_PORT_API:-8000}/v1/health"
+    echo -e "  ${CYAN}• Platform Info:${NC}         http://localhost:${ASSIGNED_PORT_API:-8000}/v1/info"
     echo
     echo -e "${WHITE}📚 Documentation & Testing:${NC}"
-    echo -e "  ${CYAN}• Documentation Portal:${NC}  http://localhost:${ASSIGNED_PORTS[docs_portal]:-8501}"
+    echo -e "  ${CYAN}• Documentation Portal:${NC}  http://localhost:${ASSIGNED_PORT_DOCS_PORTAL:-8501}"
     echo -e "    ${GRAY}- Comprehensive user guides with search${NC}"
     echo -e "    ${GRAY}- Field-level explanations and deployment guides${NC}"
     echo -e "    ${GRAY}- Configuration tutorials and troubleshooting${NC}"
     echo
-    echo -e "  ${CYAN}• Testing Portal:${NC}        http://localhost:${ASSIGNED_PORTS[testing_portal]:-8502}"
+    echo -e "  ${CYAN}• Testing Portal:${NC}        http://localhost:${ASSIGNED_PORT_TESTING_PORTAL:-8502}"
     echo -e "    ${GRAY}- Interactive service testing interface${NC}"
     echo -e "    ${GRAY}- Real API endpoint testing with examples${NC}"
     echo -e "    ${GRAY}- Test history and performance analytics${NC}"
     echo
     echo -e "${WHITE}📖 Enhanced API Documentation:${NC}"
-    echo -e "  ${CYAN}• Swagger UI:${NC}            http://localhost:${ASSIGNED_PORTS[api]:-8000}/docs"
+    echo -e "  ${CYAN}• Swagger UI:${NC}            http://localhost:${ASSIGNED_PORT_API:-8000}/docs"
     echo -e "    ${GRAY}- Interactive API testing with comprehensive examples${NC}"
     echo -e "    ${GRAY}- Field descriptions and validation rules${NC}"
     echo -e "    ${GRAY}- Authentication and security guides${NC}"
     echo
-    echo -e "  ${CYAN}• ReDoc:${NC}                 http://localhost:${ASSIGNED_PORTS[api]:-8000}/redoc"
+    echo -e "  ${CYAN}• ReDoc:${NC}                 http://localhost:${ASSIGNED_PORT_API:-8000}/redoc"
     echo -e "    ${GRAY}- Clean API reference documentation${NC}"
     echo -e "    ${GRAY}- Code examples in multiple languages${NC}"
     echo
@@ -758,25 +773,44 @@ find_available_port() {
     return 1
 }
 
-# Smart port conflict resolution
+# Smart port conflict resolution (Bash 3.2 compatible)
 resolve_port_conflicts() {
     print_status "🔍 Scanning for port conflicts and resolving..."
     
     local conflicts_found=false
     local resolution_summary=""
     
-    for service in "${!SERVICE_PORTS[@]}"; do
-        local original_port=${SERVICE_PORTS[$service]}
+    # Function to set assigned port variable
+    set_assigned_port() {
+        local service=$1
+        local port=$2
+        case $service in
+            "api") ASSIGNED_PORT_API=$port ;;
+            "docs_portal") ASSIGNED_PORT_DOCS_PORTAL=$port ;;
+            "testing_portal") ASSIGNED_PORT_TESTING_PORTAL=$port ;;
+            "frontend") ASSIGNED_PORT_FRONTEND=$port ;;
+            "grafana") ASSIGNED_PORT_GRAFANA=$port ;;
+            "jaeger") ASSIGNED_PORT_JAEGER=$port ;;
+            "prometheus") ASSIGNED_PORT_PROMETHEUS=$port ;;
+            "postgres") ASSIGNED_PORT_POSTGRES=$port ;;
+            "redis") ASSIGNED_PORT_REDIS=$port ;;
+        esac
+    }
+    
+    # Process each service:port pair
+    for service_port in "${SERVICE_PORTS[@]}"; do
+        local service=${service_port%:*}
+        local original_port=${service_port#*:}
         
         if is_port_available $original_port; then
-            ASSIGNED_PORTS[$service]=$original_port
+            set_assigned_port $service $original_port
             print_success "✅ Port $original_port available for $service"
         else
             conflicts_found=true
             local new_port=$(find_available_port $((original_port + 1)))
             
             if [ $new_port -ne $original_port ]; then
-                ASSIGNED_PORTS[$service]=$new_port
+                set_assigned_port $service $new_port
                 resolution_summary+="\n  • $service: $original_port → $new_port"
                 print_warning "🔄 Port conflict resolved: $service moved from $original_port to $new_port"
             else
@@ -796,9 +830,15 @@ resolve_port_conflicts() {
     return 0
 }
 
-# Update environment file with new ports
+# Update environment file with new ports (Bash 3.2 compatible)
 update_environment_with_new_ports() {
     print_status "📝 Updating environment configuration with resolved ports..."
+    
+    # Check if .env file exists
+    if [ ! -f "$ENV_FILE" ]; then
+        print_warning ".env file not found - will be created with resolved ports"
+        return 0
+    fi
     
     # Create backup of original .env
     cp "$ENV_FILE" "${ENV_FILE}.backup.$(date +%s)"
@@ -806,25 +846,19 @@ update_environment_with_new_ports() {
     # Copy original to temp file
     cp "$ENV_FILE" "$TEMP_ENV_FILE"
     
-    # Update ports in temp env file
-    for service in "${!ASSIGNED_PORTS[@]}"; do
-        local new_port=${ASSIGNED_PORTS[$service]}
-        
-        case $service in
-            "api")
-                sed -i.bak "s/^API_PORT=.*/API_PORT=$new_port/" "$TEMP_ENV_FILE"
-                ;;
-            "docs_portal")
-                sed -i.bak "s/^DOCS_PORTAL_PORT=.*/DOCS_PORTAL_PORT=$new_port/" "$TEMP_ENV_FILE"
-                ;;
-            "testing_portal")
-                sed -i.bak "s/^TESTING_PORTAL_PORT=.*/TESTING_PORTAL_PORT=$new_port/" "$TEMP_ENV_FILE"
-                ;;
-            "prometheus")
-                sed -i.bak "s/^PROMETHEUS_PORT=.*/PROMETHEUS_PORT=$new_port/" "$TEMP_ENV_FILE"
-                ;;
-        esac
-    done
+    # Update ports in temp env file based on assigned port variables
+    if [ -n "$ASSIGNED_PORT_API" ]; then
+        sed -i.bak "s/^API_PORT=.*/API_PORT=$ASSIGNED_PORT_API/" "$TEMP_ENV_FILE"
+    fi
+    if [ -n "$ASSIGNED_PORT_DOCS_PORTAL" ]; then
+        sed -i.bak "s/^DOCS_PORTAL_PORT=.*/DOCS_PORTAL_PORT=$ASSIGNED_PORT_DOCS_PORTAL/" "$TEMP_ENV_FILE"
+    fi
+    if [ -n "$ASSIGNED_PORT_TESTING_PORTAL" ]; then
+        sed -i.bak "s/^TESTING_PORTAL_PORT=.*/TESTING_PORTAL_PORT=$ASSIGNED_PORT_TESTING_PORTAL/" "$TEMP_ENV_FILE"
+    fi
+    if [ -n "$ASSIGNED_PORT_PROMETHEUS" ]; then
+        sed -i.bak "s/^PROMETHEUS_PORT=.*/PROMETHEUS_PORT=$ASSIGNED_PORT_PROMETHEUS/" "$TEMP_ENV_FILE"
+    fi
     
     # Replace original with updated version
     mv "$TEMP_ENV_FILE" "$ENV_FILE"
