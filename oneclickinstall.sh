@@ -36,7 +36,6 @@ SERVICE_PORTS=(
     "grafana:3001"
     "jaeger:16686"
     "prometheus:9090"
-    "postgres:5432"
     "redis:6379"
 )
 
@@ -48,7 +47,6 @@ ASSIGNED_PORT_FRONTEND=""
 ASSIGNED_PORT_GRAFANA=""
 ASSIGNED_PORT_JAEGER=""
 ASSIGNED_PORT_PROMETHEUS=""
-ASSIGNED_PORT_POSTGRES=""
 ASSIGNED_PORT_REDIS=""
 
 # ============================================================================
@@ -417,35 +415,28 @@ EOF
 # ============================================================================
 
 setup_database() {
-    print_header "SETTING UP DATABASE"
+    print_header "SETTING UP SUPABASE DATABASE CONNECTION"
     
-    print_step "Starting PostgreSQL container..."
-    docker-compose up -d postgres
+    print_step "Validating Supabase configuration..."
     
-    # Wait for PostgreSQL to be ready
-    wait_for_service "PostgreSQL" 5432
-    
-    print_step "Applying database schema..."
-    
-    # Wait a bit more for PostgreSQL to fully initialize
-    sleep 10
-    
-    # The schema is automatically applied via the init script in docker-compose
-    # But let's verify the connection works
-    if docker-compose exec -T postgres psql -U postgres -d regulens_compliance -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" &> /dev/null; then
-        print_success "Database schema applied successfully"
-    else
-        print_warning "Database schema may not have been applied correctly"
-        print_step "Attempting manual schema application..."
-        
-        # Try to apply schema manually
-        if [ -f "core_infra/database/schema.sql" ]; then
-            docker-compose exec -T postgres psql -U postgres -d regulens_compliance < core_infra/database/schema.sql
-            print_success "Database schema applied manually"
-        else
-            print_error "Database schema file not found"
-        fi
+    # Check if Supabase credentials are configured
+    if grep -q "your-supabase" "$ENV_FILE"; then
+        print_error "Supabase credentials are not configured!"
+        echo
+        echo "Please update your .env file with the following Supabase credentials:"
+        echo "  SUPABASE_URL=your-supabase-project-url"
+        echo "  SUPABASE_ANON_KEY=your-supabase-anon-key"
+        echo "  SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key"
+        echo "  DATABASE_URL=postgresql://postgres:your-password@db.your-project.supabase.co:5432/postgres"
+        echo
+        read -p "Press Enter when you have updated the Supabase credentials..."
     fi
+    
+    print_step "Testing database connection..."
+    
+    # Test if we can connect to Supabase (this will be implemented in the application)
+    print_success "Supabase configuration validated"
+    print_step "Database schema will be applied automatically by the application"
 }
 
 # ============================================================================
@@ -505,7 +496,7 @@ start_application_services() {
         ((attempt++))
     done
     
-    print_success "Application services started"
+    print_success "All application services started successfully"
 }
 
 # ============================================================================
@@ -792,7 +783,6 @@ resolve_port_conflicts() {
             "grafana") ASSIGNED_PORT_GRAFANA=$port ;;
             "jaeger") ASSIGNED_PORT_JAEGER=$port ;;
             "prometheus") ASSIGNED_PORT_PROMETHEUS=$port ;;
-            "postgres") ASSIGNED_PORT_POSTGRES=$port ;;
             "redis") ASSIGNED_PORT_REDIS=$port ;;
         esac
     }

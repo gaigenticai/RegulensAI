@@ -1,22 +1,48 @@
-[2025-07-28 16:56:32] SUCCESS: Docker is installed
-[2025-07-28 16:56:32] SUCCESS: Docker daemon is running
-[2025-07-28 16:56:32] SUCCESS: Docker Compose is available
-[2025-07-28 16:56:32] SUCCESS: curl is installed
-[2025-07-28 16:56:32] SUCCESS: nc is installed
-[2025-07-28 16:56:32] SUCCESS: openssl is installed
-[2025-07-28 16:56:32] SUCCESS: git is installed
-[2025-07-28 16:56:32] SUCCESS: Sufficient disk space available
-[2025-07-28 16:56:32] STATUS: 🔍 Scanning for port conflicts and resolving...
-[2025-07-28 16:56:32] SUCCESS: ✅ Port 8000 available for api
-[2025-07-28 16:56:32] SUCCESS: ✅ Port 8501 available for docs_portal
-[2025-07-28 16:56:33] SUCCESS: ✅ Port 8502 available for testing_portal
-[2025-07-28 16:56:33] SUCCESS: ✅ Port 3000 available for frontend
-[2025-07-28 16:56:33] SUCCESS: ✅ Port 3001 available for grafana
-[2025-07-28 16:56:33] SUCCESS: ✅ Port 16686 available for jaeger
-[2025-07-28 16:56:33] SUCCESS: ✅ Port 9090 available for prometheus
-[2025-07-28 16:56:34] WARNING: 🔄 Port conflict resolved: postgres moved from 5432 to 5433
-[2025-07-28 16:56:34] WARNING: 🔄 Port conflict resolved: redis moved from 6379 to 6380
-[2025-07-28 16:56:34] STATUS: 📋 Port conflict resolution summary:\n  • postgres: 5432 → 5433\n  • redis: 6379 → 6380
-[2025-07-28 16:56:34] STATUS: 📝 Updating environment configuration with resolved ports...
-[2025-07-28 16:56:34] SUCCESS: Environment configuration updated with new ports
-[2025-07-28 16:56:34] WARNING: .env file already exists
+[2025-07-29 07:38:28] SUCCESS: Docker is installed
+[2025-07-29 07:38:28] SUCCESS: Docker daemon is running
+[2025-07-29 07:38:28] SUCCESS: Docker Compose is available
+[2025-07-29 07:38:28] SUCCESS: curl is installed
+[2025-07-29 07:38:28] SUCCESS: nc is installed
+[2025-07-29 07:38:28] SUCCESS: openssl is installed
+[2025-07-29 07:38:28] SUCCESS: git is installed
+[2025-07-29 07:38:28] SUCCESS: Sufficient disk space available
+[2025-07-29 07:38:28] STATUS: 🔍 Scanning for port conflicts and resolving...
+[2025-07-29 07:38:28] SUCCESS: ✅ Port 8000 available for api
+[2025-07-29 07:38:28] SUCCESS: ✅ Port 8501 available for docs_portal
+[2025-07-29 07:38:29] SUCCESS: ✅ Port 8502 available for testing_portal
+[2025-07-29 07:38:29] SUCCESS: ✅ Port 3000 available for frontend
+[2025-07-29 07:38:29] WARNING: 🔄 Port conflict resolved: grafana moved from 3001 to 3002
+[2025-07-29 07:38:30] WARNING: 🔄 Port conflict resolved: jaeger moved from 16686 to 16687
+[2025-07-29 07:38:30] WARNING: 🔄 Port conflict resolved: prometheus moved from 9090 to 9091
+[2025-07-29 07:38:31] WARNING: 🔄 Port conflict resolved: postgres moved from 5432 to 5433
+[2025-07-29 07:38:31] WARNING: 🔄 Port conflict resolved: redis moved from 6379 to 6380
+[2025-07-29 07:38:31] STATUS: 📋 Port conflict resolution summary:\n  • grafana: 3001 → 3002\n  • jaeger: 16686 → 16687\n  • prometheus: 9090 → 9091\n  • postgres: 5432 → 5433\n  • redis: 6379 → 6380
+[2025-07-29 07:38:31] STATUS: 📝 Updating environment configuration with resolved ports...
+[2025-07-29 07:38:31] SUCCESS: Environment configuration updated with new ports
+[2025-07-29 07:38:31] WARNING: .env file already exists
+[2025-07-29 07:39:17] STEP: Using existing .env file
+[2025-07-29 07:39:17] STEP: Validating environment configuration...
+[2025-07-29 07:39:17] SUCCESS: Environment configuration validated
+[2025-07-29 07:39:17] STEP: Creating required directories...
+[2025-07-29 07:39:17] STEP: Creating monitoring configuration files...
+[2025-07-29 07:39:17] SUCCESS: Monitoring configurations created
+[2025-07-29 07:39:17] SUCCESS: Docker environment prepared
+[2025-07-29 07:39:17] STEP: Validating Supabase configuration...
+[2025-07-29 07:39:17] STEP: Testing database connection...
+[2025-07-29 07:39:17] SUCCESS: Supabase configuration validated
+[2025-07-29 07:39:17] STEP: Database schema will be applied automatically by the application
+[2025-07-29 07:39:17] STEP: Starting Redis...
+[2025-07-29 07:39:17] STEP: Waiting for Redis to be ready on port 6379...
+[2025-07-29 07:39:17] SUCCESS: Redis is ready!
+[2025-07-29 07:39:17] STEP: Starting Qdrant vector database...
+[2025-07-29 07:39:17] STEP: Waiting for Qdrant to be ready on port 6333...
+[2025-07-29 07:39:17] SUCCESS: Qdrant is ready!
+[2025-07-29 07:39:17] STEP: Starting monitoring services...
+[2025-07-29 07:39:17] STEP: Waiting for Jaeger to be ready on port 16686...
+[2025-07-29 07:39:17] SUCCESS: Jaeger is ready!
+[2025-07-29 07:39:17] STEP: Waiting for Prometheus to be ready on port 9090...
+[2025-07-29 07:39:17] SUCCESS: Prometheus is ready!
+[2025-07-29 07:39:17] STEP: Waiting for Grafana to be ready on port 3001...
+[2025-07-29 07:39:17] SUCCESS: Grafana is ready!
+[2025-07-29 07:39:17] SUCCESS: Core services started successfully
+[2025-07-29 07:39:17] STEP: Building application images...

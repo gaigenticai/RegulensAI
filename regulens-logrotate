@@ -1,0 +1,10 @@
+/Users/krishna/Downloads/gaigenticai/RegulensAI/RegulensAI/logs/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+    create 0644 root root
+}
