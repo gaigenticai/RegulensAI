@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY requirements.txt ./requirements.txt
+COPY requirements-minimal.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "core_infra.api.proper_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"] 
+CMD ["python", "-m", "uvicorn", "core_infra.api.simple_main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"] 

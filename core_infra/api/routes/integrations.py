@@ -26,19 +26,6 @@ from core_infra.services.integrations import (
     IntegrationManagerService
 )
 
-# Missing dependencies
-def get_supabase_client():
-    """Get Supabase client dependency"""
-    return None
-
-class EntityScreeningRequest(BaseModel):
-    """Entity screening request model"""
-    entity_name: str = Field(..., description="Entity name to screen")
-
-class DocumentLifecycleAction(BaseModel):
-    """Document lifecycle action model"""
-    action: str = Field(..., description="Lifecycle action")
-
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -188,8 +175,8 @@ async def process_realtime_transaction(
 # External Data Integration Routes
 @router.post("/external-data/screen-entity")
 async def screen_entity(
-    screening_request: EntityScreeningRequest,
     tenant_id: str = Query(..., description="Tenant ID"),
+    screening_request: EntityScreeningRequest,
     supabase_client = Depends(get_supabase_client)
 ):
     """Screen entity against sanctions, PEP, and watchlists."""
@@ -263,8 +250,8 @@ async def sync_documents(
 @router.post("/documents/{document_id}/lifecycle")
 async def manage_document_lifecycle(
     document_id: str,
-    lifecycle_action: DocumentLifecycleAction,
     tenant_id: str = Query(..., description="Tenant ID"),
+    lifecycle_action: DocumentLifecycleAction,
     supabase_client = Depends(get_supabase_client)
 ):
     """Manage document lifecycle (review, approve, archive, delete)."""
@@ -372,8 +359,8 @@ async def manage_integration_costs(
 # Integration System CRUD Routes
 @router.post("/systems")
 async def create_integration_system(
-    system_data: IntegrationSystemCreate,
     tenant_id: str = Query(..., description="Tenant ID"),
+    system_data: IntegrationSystemCreate,
     supabase_client = Depends(get_supabase_client)
 ):
     """Create new integration system configuration."""
@@ -489,8 +476,8 @@ async def get_integration_system(
 @router.put("/systems/{system_id}")
 async def update_integration_system(
     system_id: str,
-    system_data: IntegrationSystemCreate,
     tenant_id: str = Query(..., description="Tenant ID"),
+    system_data: IntegrationSystemCreate,
     supabase_client = Depends(get_supabase_client)
 ):
     """Update integration system configuration."""

@@ -846,8 +846,8 @@ async def test_workflow_trigger(
 
 @router.post("/regulatory-change", response_model=Dict[str, Any])
 async def handle_regulatory_change(
-    background_tasks: BackgroundTasks,
     regulation_id: str = Query(..., description="Regulation ID"),
+    background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user),
     tenant_check = Depends(verify_tenant_access)
 ):

@@ -372,8 +372,8 @@ async def get_regulatory_document(
 @router.post("/documents/{document_id}/analyze", response_model=Dict[str, Any])
 async def analyze_document(
     document_id: str,
-    background_tasks: BackgroundTasks,
     force_reanalysis: bool = Query(False, description="Force re-analysis"),
+    background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user),
     tenant_check = Depends(verify_tenant_access)
 ):

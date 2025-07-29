@@ -1,24 +1,16 @@
 """
-Regulatory monitoring service stubs
+Regulatory Monitor Service
+Real-time monitoring of global regulatory changes and updates.
 """
-from typing import Dict, Any
 
-class RegulatoryMonitor:
-    """Stub regulatory monitor"""
-    pass
+from .monitor import RegulatoryMonitor
+from .scheduler import RegulatoryScheduler
+from .processor import DocumentProcessor
+from .analyzer import RegulatoryAnalyzer
 
-class RegulatoryScheduler:
-    """Stub regulatory scheduler"""  
-    pass
-
-# Module-level instances
-regulatory_monitor = RegulatoryMonitor()
-regulatory_scheduler = RegulatoryScheduler()
-
-def get_monitor_status() -> Dict[str, Any]:
-    """Get monitor status"""
-    return {"status": "active", "sources": 0}
-
-def get_scheduler_status() -> Dict[str, Any]:
-    """Get scheduler status"""
-    return {"status": "active", "scheduled_tasks": 0} 
+__all__ = [
+    "RegulatoryMonitor",
+    "RegulatoryScheduler", 
+    "DocumentProcessor",
+    "RegulatoryAnalyzer"
+] 
