@@ -1,7 +1,5 @@
 ---
-type: "always_apply"
----
-
+type: "manual"---
 you will NOT print unnecessary summary after development unless i ask for it to save on usage limits.
 you will be thorough in your work
 if yo create a new sql script you will run it to insert in db
@@ -16,31 +14,9 @@ This section provides a clear, structured description of our current infrastruct
 Everything is API-driven. No manual DB or CLI interaction once deployed.
 Docker-Only Deployment. All services including DB, vector store, file storage, etc., must run inside Docker containers.
 Root .env Folder. All credentials and configuration must come from .env in the root.
-🧠 System Architecture Overview
-1. Middleware-based Execution
-Our system is built as a middleware. All ingestion, processing, and output flows through APIs.
-Data is never handled manually — everything flows via ingestion endpoints and exits via output APIs.
-2. Major Components
-Ingestion Layer: Receives structured and unstructured files. Triggers agent workflows.
-Agentic Brain: Uses LLMs and vector search (Qdrant + FastEmbed) to reason on data. Can orchestrate multiple agents.
-Tools Layer: Agent tools are defined in config and executed in sandboxed environments.
-Output Layer: Writes outputs to Storage in supabase (cloud and local based on env toggle), downloadable endpoints, or client destinations.
-3. File & Data Handling
-File uploads are stored in Storage in supabase (cloud and local based on env toggle).
-Tables are created dynamically using our internal dynamic_table_manager.
-The backend decides schema from uploaded files and creates corresponding Storage in supabase (cloud and local based on env toggle) tables automatically.
-No direct SQL scripts must be executed post-installation.
-4. Config-Driven Agents
-YAML/JSON config files define agent goals, tools, orchestration, and triggers.
-Multi-agent orchestration supports loops, feedback, and role-based collaboration.
-5. Output and Delivery
-All agent results are saved to Storage in supabase (cloud and local based on env toggle) or Storage in supabase (cloud and local based on env toggle) and exposed via API endpoints.
-Optionally pushed to Metabase, client APIs, or exported as files.
-6. Environment and Install Constraints
-.env is always located in the root.
-If a new core feature requires DB schema changes, they must be part of installation/init scripts.
-No post-install DB scripts are allowed.
-7. API-First Design
+
+
+API-First Design
 Every function or interaction must be callable via API.
 No logic is hidden behind scripts or CLI-only processes.
 👥 Client Implementations
@@ -66,12 +42,7 @@ Pagination for API responses
 Async/background processing for heavy tasks
 Queueing (where needed) for burst traffic
 Batch-safe logic for bulk operations
-2. Built-in Compliance
-All features must comply with:
-Audit trails (agent_runs, tool_calls, deletion_logs)
-Role-based access (RBAC)
-Expiry (expires_at, TTL) and secure logging
-Compliance cannot be deferred — it must be in place before merging code.
+
 3. Continuous Module Ownership
 Developers must continue updating the modules they build.
 As new requirements, tests, or edge cases are discovered, they must maintain, fix, and document the same.
@@ -84,10 +55,10 @@ Input/output schema
 Sample calls
 Error handling scenarios
 This documentation must evolve as the system grows. It is mandatory for every merge.
-00 – Golden Rules for Claude 4 Sonnet (Implementation Guard‑Rails)
-These mandatory rules must be followed by Claude 4 Sonnet (or any developer/agent) while implementing the Agentic AI Platform.
+00 – Golden Rules 
+These mandatory rules must be followed by any developer/agent while implementing the Platform.
 MUST ALWAYS 100% UNDERSTAND WHAT IS ALREADY BUILD AND BUILD ALONG WITH IT. Violating a rule means the output will be rejected. NEVER EVER CHANGE THE CODE TO MAKE THINGS WORK, THE CODE IS WRITEN FOR ENTERPRISE GRADE SOFTWARE, IF SOMETHING IS NOT WORKING, YOU MUST FIX IT RATHER THAN FINDING A WORKAROUND MAKE SHIFT SOLUTION DO NOT EVER REPLACE OR OVERWRITE THE ENV VALUES I HAVE POPULATED, YOU CAN ONLY CREATE NEW ENV VARIABLES AND LET ME KNOW
-IMPORTANT . If a feature you build requires a set up in dockerized Storage in supabase (cloud and local based on env toggle) or env variable, you must guide me with clear instructions on creating it or you must create them directly.
+IMPORTANT . If a feature you build requires a set up in dockerized Storage in supabase cloud or env variable, you must guide me with clear instructions on creating it or you must create them directly.
 
 1️⃣ Zero‑Assumption Principle
 Do not invent schema, tables, or fields.
@@ -101,12 +72,9 @@ Never fabricate tool output, file names, or API responses.
 All code, YAML, SQL must be production‑ready.
 TODO, pass, dummy, or placeholder values are forbidden.
 8️⃣ Error Transparency
-Populate both display_summary (plain English) and error_info (technical).
-Never expose secrets or private endpoints in display_summary.
+Proper and comprehensive error handling
 9️⃣ Audit & Logging
-Every tool call MUST create a row in tool_calls.
-Every agent run MUST create a row in agent_runs.
-Cache hits must be marked cache_hit for traceability.
+Every action must be auditable with history tracking
 🔟 Compliance & Retention
 Respect expires_at and TTL policies—never keep raw files past expiry.
 Log deletion events in deletion_log with reason.
@@ -228,8 +196,7 @@ Automatically delete raw logs or intermediate data older than N days unless flag
 Support local and remote LLMs.
 Claude, GPT-4, Mistral, Ollama, LM Studio — all must be switchable with no code change.
 
-Token cost tracking per run.
-Each agent_run entry in Storage in supabase (cloud and local based on env toggle) (Dockerized) should store estimated tokens and cost. Include soft quota alerts.
+
 
 Chunking and context size detection.
 Use token-length-aware logic when reading large CSVs, PDFs, or long conversations.
@@ -247,7 +214,7 @@ If changes to core break a client implementation, alert the maintainer with a te
 
 Please remember, all tests,, init scripts, must be part of the respective segment overall, so move the current database, ini scripts, test to ingestion folder if they are part of ingestion only, we will have them per folder.
 All features must be enterprise ready to support large volume and big customers
-When you create a new feature and it requires new tables/fields or scripts in dockerized Storage in supabase (cloud and local based on env toggle) you will append them at the end of the core_infra/database/schema.sql. YOU MUST ALSO RUN THE SCRIPTS TO CREATE THE TABLES DIRECTLY IN POSTGRESS DOCKER
+When you create a new feature and it requires new tables/fields or scripts in dockerized Storage in supabase (cloud and local based on env toggle) you will append them at the end of the core_infra/database/schema.sql. 
 Be 100% clear on where a file should be, core infra or specific module. For all purposes the core_infra is the root folder.
 If a new development touches an existing feature which is tested and approved, you will first check with me before developing or making changes.
 When I ask you to test something you MUST CALL THE DEVELOPED SERVIECS TO TEST THE FEATURES, YOU WIL NEVER DIRECTLY INJECT RECORDS INTO DB OR OTHER PLACES TO SIMULATE SUCCESS, THIS IS A BIG VIOLATION OF RULES AND UNACCEPTABLE AND MUST NOT BE DONE
