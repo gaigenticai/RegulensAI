@@ -7,7 +7,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Enable Row Level Security
-ALTER DATABASE postgres SET "app.jwt_secret" TO 'your-jwt-secret-change-in-production';
+-- Note: JWT secret should be set via environment variables in production
 
 -- ============================================================================
 -- TENANTS AND USERS
@@ -81,6 +81,94 @@ ALTER TABLE public.users
 
 ALTER TABLE public.users
     ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- ============================================================================
+-- USER CREDENTIALS AND PERMISSIONS
+-- ============================================================================
+
+-- Step 1: Create user_credentials table with primary key
+CREATE TABLE IF NOT EXISTS public.user_credentials (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 2: Add remaining fields to user_credentials
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS password_hash text NOT NULL;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS password_salt text;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS last_password_change timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS failed_login_attempts integer DEFAULT 0 NOT NULL;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS locked_until timestamp with time zone;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.user_credentials
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create permissions table with primary key
+CREATE TABLE IF NOT EXISTS public.permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 2: Add remaining fields to permissions
+ALTER TABLE public.permissions
+    ADD COLUMN IF NOT EXISTS permission_name text UNIQUE NOT NULL;
+
+ALTER TABLE public.permissions
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.permissions
+    ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
+
+ALTER TABLE public.permissions
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.permissions
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create user_permissions table with primary key
+CREATE TABLE IF NOT EXISTS public.user_permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 2: Add remaining fields to user_permissions
+ALTER TABLE public.user_permissions
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_permissions
+    ADD COLUMN IF NOT EXISTS permission_id uuid NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_permissions
+    ADD COLUMN IF NOT EXISTS granted_by uuid REFERENCES public.users(id);
+
+ALTER TABLE public.user_permissions
+    ADD COLUMN IF NOT EXISTS granted_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Add unique constraint to prevent duplicate permissions
+ALTER TABLE public.user_permissions
+    ADD CONSTRAINT IF NOT EXISTS unique_user_permission
+    UNIQUE (user_id, permission_id);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON public.user_credentials(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON public.user_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_permission_id ON public.user_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_permissions_name ON public.permissions(permission_name);
+
+-- Add triggers for updated_at
+CREATE TRIGGER update_user_credentials_updated_at BEFORE UPDATE ON public.user_credentials
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
 -- REGULATORY INTELLIGENCE
@@ -924,6 +1012,87 @@ INSERT INTO public.regulatory_sources (name, type, country_code, jurisdiction, w
     ('Australian Prudential Regulation Authority', 'regulator', 'AU', 'Federal', 'https://www.apra.gov.au', true),
     ('Monetary Authority of Singapore', 'regulator', 'SG', 'National', 'https://www.mas.gov.sg', true)
 ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- SEED DATA FOR PERMISSIONS
+-- ============================================================================
+
+-- Insert core permissions
+INSERT INTO public.permissions (permission_name, description, category) VALUES
+    -- Authentication and User Management
+    ('auth.login', 'Login to the system', 'authentication'),
+    ('auth.logout', 'Logout from the system', 'authentication'),
+    ('users.read', 'View user information', 'user_management'),
+    ('users.create', 'Create new users', 'user_management'),
+    ('users.update', 'Update user information', 'user_management'),
+    ('users.delete', 'Delete users', 'user_management'),
+    ('users.manage_permissions', 'Manage user permissions', 'user_management'),
+
+    -- Tenant Management
+    ('tenants.read', 'View tenant information', 'tenant_management'),
+    ('tenants.create', 'Create new tenants', 'tenant_management'),
+    ('tenants.update', 'Update tenant information', 'tenant_management'),
+    ('tenants.delete', 'Delete tenants', 'tenant_management'),
+    ('tenants.manage_settings', 'Manage tenant settings', 'tenant_management'),
+
+    -- Regulatory Intelligence
+    ('regulatory.sources.read', 'View regulatory sources', 'regulatory'),
+    ('regulatory.sources.create', 'Create regulatory sources', 'regulatory'),
+    ('regulatory.sources.update', 'Update regulatory sources', 'regulatory'),
+    ('regulatory.sources.delete', 'Delete regulatory sources', 'regulatory'),
+    ('regulatory.documents.read', 'View regulatory documents', 'regulatory'),
+    ('regulatory.documents.analyze', 'Analyze regulatory documents', 'regulatory'),
+    ('regulatory.monitoring.control', 'Control regulatory monitoring', 'regulatory'),
+
+    -- Compliance Management
+    ('compliance.programs.read', 'View compliance programs', 'compliance'),
+    ('compliance.programs.create', 'Create compliance programs', 'compliance'),
+    ('compliance.programs.update', 'Update compliance programs', 'compliance'),
+    ('compliance.programs.delete', 'Delete compliance programs', 'compliance'),
+    ('compliance.requirements.read', 'View compliance requirements', 'compliance'),
+    ('compliance.requirements.create', 'Create compliance requirements', 'compliance'),
+    ('compliance.requirements.update', 'Update compliance requirements', 'compliance'),
+    ('compliance.tasks.read', 'View compliance tasks', 'compliance'),
+    ('compliance.tasks.create', 'Create compliance tasks', 'compliance'),
+    ('compliance.tasks.update', 'Update compliance tasks', 'compliance'),
+    ('compliance.tasks.assign', 'Assign compliance tasks', 'compliance'),
+
+    -- AML/KYC
+    ('aml.customers.read', 'View customer information', 'aml_kyc'),
+    ('aml.customers.create', 'Create customer records', 'aml_kyc'),
+    ('aml.customers.update', 'Update customer information', 'aml_kyc'),
+    ('aml.customers.screen', 'Screen customers against sanctions', 'aml_kyc'),
+    ('aml.transactions.read', 'View transaction data', 'aml_kyc'),
+    ('aml.transactions.monitor', 'Monitor transactions for suspicious activity', 'aml_kyc'),
+    ('aml.sar.read', 'View suspicious activity reports', 'aml_kyc'),
+    ('aml.sar.create', 'Create suspicious activity reports', 'aml_kyc'),
+    ('aml.sar.file', 'File suspicious activity reports', 'aml_kyc'),
+
+    -- Reporting and Analytics
+    ('reports.read', 'View reports', 'reporting'),
+    ('reports.create', 'Create reports', 'reporting'),
+    ('reports.export', 'Export reports', 'reporting'),
+    ('analytics.read', 'View analytics dashboards', 'reporting'),
+    ('analytics.advanced', 'Access advanced analytics', 'reporting'),
+
+    -- AI and Insights
+    ('ai.insights.read', 'View AI insights', 'ai'),
+    ('ai.models.manage', 'Manage AI models', 'ai'),
+    ('ai.analysis.trigger', 'Trigger AI analysis', 'ai'),
+
+    -- System Administration
+    ('system.health.read', 'View system health', 'system'),
+    ('system.metrics.read', 'View system metrics', 'system'),
+    ('system.logs.read', 'View system logs', 'system'),
+    ('system.config.update', 'Update system configuration', 'system'),
+    ('system.backup.manage', 'Manage system backups', 'system'),
+
+    -- Audit and Security
+    ('audit.logs.read', 'View audit logs', 'audit'),
+    ('audit.trails.export', 'Export audit trails', 'audit'),
+    ('security.incidents.read', 'View security incidents', 'security'),
+    ('security.incidents.manage', 'Manage security incidents', 'security')
+ON CONFLICT (permission_name) DO NOTHING;
 
 -- ============================================================================
 -- COMMENTS FOR DOCUMENTATION
@@ -4218,12 +4387,922 @@ CREATE INDEX IF NOT EXISTS idx_ui_portal_analytics_portal ON public.ui_portal_an
 CREATE INDEX IF NOT EXISTS idx_ui_portal_analytics_event ON public.ui_portal_analytics(event_type);
 CREATE INDEX IF NOT EXISTS idx_ui_portal_analytics_created ON public.ui_portal_analytics(created_at);
 
+-- Step 1: Create ui_test_suites table with primary key
+CREATE TABLE IF NOT EXISTS public.ui_test_suites (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 2: Add remaining fields to ui_test_suites
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS name text NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS description text NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS created_by uuid NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS tests jsonb NOT NULL DEFAULT '[]';
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.ui_test_suites
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Create indexes for UI test suites
+CREATE INDEX IF NOT EXISTS idx_ui_test_suites_tenant ON public.ui_test_suites(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ui_test_suites_created_by ON public.ui_test_suites(created_by);
+CREATE INDEX IF NOT EXISTS idx_ui_test_suites_active ON public.ui_test_suites(is_active);
+CREATE INDEX IF NOT EXISTS idx_ui_test_suites_created ON public.ui_test_suites(created_at);
+
 -- Add comments for UI portal tables
 COMMENT ON TABLE public.ui_portal_sessions IS 'UI portal user sessions tracking for documentation and testing portals';
 COMMENT ON TABLE public.ui_search_logs IS 'Search query logs and analytics for documentation portal';
 COMMENT ON TABLE public.ui_test_executions IS 'Test execution history and results from testing portal';
 COMMENT ON TABLE public.ui_portal_analytics IS 'General analytics and usage tracking for UI portals';
+COMMENT ON TABLE public.ui_test_suites IS 'Test suite configurations for automated testing portal';
+
+-- Step 1: Create security_scan_results table with primary key
+CREATE TABLE IF NOT EXISTS public.security_scan_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 2: Add remaining fields to security_scan_results
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS target_url text NOT NULL;
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS scan_date timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS execution_time_ms integer NOT NULL;
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS total_vulnerabilities integer DEFAULT 0 NOT NULL;
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS risk_score integer DEFAULT 0 NOT NULL;
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS report_data jsonb NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.security_scan_results
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Create autoscaling_metrics table with primary key
+CREATE TABLE IF NOT EXISTS public.autoscaling_metrics (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 4: Add remaining fields to autoscaling_metrics
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS tenant_id uuid;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS metric_name text NOT NULL;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS metric_value numeric NOT NULL;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS threshold_up numeric;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS threshold_down numeric;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS current_replicas integer;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS target_replicas integer;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS scaling_action text;
+
+ALTER TABLE public.autoscaling_metrics
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 5: Create deployment_logs table with primary key
+CREATE TABLE IF NOT EXISTS public.deployment_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
+);
+
+-- Step 6: Add remaining fields to deployment_logs
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS deployment_id text NOT NULL;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS slot text NOT NULL;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS phase text NOT NULL;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS image_tag text;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS health_check_status text;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS rollback_reason text;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS deployment_data jsonb DEFAULT '{}';
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS started_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.deployment_logs
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+-- Create indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_security_scan_results_target ON public.security_scan_results(target_url);
+CREATE INDEX IF NOT EXISTS idx_security_scan_results_date ON public.security_scan_results(scan_date);
+CREATE INDEX IF NOT EXISTS idx_security_scan_results_risk ON public.security_scan_results(risk_score);
+
+CREATE INDEX IF NOT EXISTS idx_autoscaling_metrics_tenant ON public.autoscaling_metrics(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_autoscaling_metrics_name ON public.autoscaling_metrics(metric_name);
+CREATE INDEX IF NOT EXISTS idx_autoscaling_metrics_timestamp ON public.autoscaling_metrics(timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_deployment_id ON public.deployment_logs(deployment_id);
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_slot ON public.deployment_logs(slot);
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_status ON public.deployment_logs(status);
+CREATE INDEX IF NOT EXISTS idx_deployment_logs_started ON public.deployment_logs(started_at);
+
+-- Add foreign key constraints
+ALTER TABLE public.autoscaling_metrics
+    ADD CONSTRAINT fk_autoscaling_metrics_tenant
+    FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+-- Add comments for new tables
+COMMENT ON TABLE public.security_scan_results IS 'Security penetration testing scan results and vulnerability reports';
+COMMENT ON TABLE public.autoscaling_metrics IS 'Auto-scaling metrics and decision tracking for performance optimization';
+COMMENT ON TABLE public.deployment_logs IS 'Blue-green deployment logs and status tracking for zero-downtime deployments';
+
+-- ============================================================================
+-- AUTHENTICATION AND AUTHORIZATION TABLES (Phase 1)
+-- ============================================================================
+
+-- User credentials table for authentication
+CREATE TABLE IF NOT EXISTS public.user_credentials (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    password_hash text NOT NULL,
+    salt text,
+    last_password_change timestamp with time zone DEFAULT now() NOT NULL,
+    password_expires_at timestamp with time zone,
+    failed_login_attempts integer DEFAULT 0 NOT NULL,
+    locked_until timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Permissions table
+CREATE TABLE IF NOT EXISTS public.permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    name text NOT NULL UNIQUE,
+    description text,
+    category text NOT NULL,
+    resource text,
+    action text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- User permissions junction table
+CREATE TABLE IF NOT EXISTS public.user_permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    permission_id uuid NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
+    granted_by uuid REFERENCES public.users(id),
+    granted_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone,
+    UNIQUE(user_id, permission_id)
+);
+
+-- User sessions table for JWT token management
+CREATE TABLE IF NOT EXISTS public.user_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    session_token text NOT NULL UNIQUE,
+    refresh_token text UNIQUE,
+    ip_address inet,
+    user_agent text,
+    expires_at timestamp with time zone NOT NULL,
+    refresh_expires_at timestamp with time zone,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_accessed_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- NOTIFICATION AND ALERT TABLES (Phase 2)
+-- ============================================================================
+
+-- Notifications table
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    notification_type text NOT NULL,
+    subject text,
+    content text NOT NULL,
+    channels text[] NOT NULL DEFAULT '{}',
+    recipients text[] NOT NULL DEFAULT '{}',
+    metadata jsonb DEFAULT '{}',
+    status text NOT NULL DEFAULT 'pending',
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Notification deliveries table
+CREATE TABLE IF NOT EXISTS public.notification_deliveries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    notification_id uuid NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
+    channel text NOT NULL,
+    status text NOT NULL,
+    delivered_at timestamp with time zone,
+    error_message text,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Alerts table
+CREATE TABLE IF NOT EXISTS public.alerts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    alert_type text NOT NULL,
+    severity text NOT NULL,
+    title text NOT NULL,
+    description text NOT NULL,
+    entity_type text,
+    entity_id uuid,
+    status text NOT NULL DEFAULT 'open',
+    assigned_to uuid REFERENCES public.users(id),
+    metadata jsonb DEFAULT '{}',
+    fingerprint text,
+    occurrence_count integer DEFAULT 1 NOT NULL,
+    acknowledged_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Alert history table
+CREATE TABLE IF NOT EXISTS public.alert_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    alert_id uuid NOT NULL REFERENCES public.alerts(id) ON DELETE CASCADE,
+    action text NOT NULL,
+    user_id uuid REFERENCES public.users(id),
+    notes text,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- COMPLIANCE AND AUDIT TABLES (Phase 1-2)
+-- ============================================================================
+
+-- Compliance programs table
+CREATE TABLE IF NOT EXISTS public.compliance_programs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    description text NOT NULL,
+    framework text NOT NULL,
+    jurisdiction text NOT NULL,
+    effective_date date NOT NULL,
+    review_frequency integer NOT NULL,
+    owner_id uuid NOT NULL REFERENCES public.users(id),
+    is_active boolean DEFAULT true NOT NULL,
+    last_review_date date,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Compliance requirements table
+CREATE TABLE IF NOT EXISTS public.compliance_requirements (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    program_id uuid NOT NULL REFERENCES public.compliance_programs(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text NOT NULL,
+    requirement_type text NOT NULL,
+    priority text NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    due_date date,
+    assigned_to uuid REFERENCES public.users(id),
+    evidence_required boolean DEFAULT true NOT NULL,
+    automation_possible boolean DEFAULT false NOT NULL,
+    completion_percentage integer DEFAULT 0 NOT NULL,
+    completion_notes text,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Tasks table
+CREATE TABLE IF NOT EXISTS public.tasks (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text NOT NULL,
+    task_type text NOT NULL,
+    priority text NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    due_date timestamp with time zone,
+    assigned_to uuid REFERENCES public.users(id),
+    created_by uuid NOT NULL REFERENCES public.users(id),
+    related_entity_type text,
+    related_entity_id uuid,
+    completion_notes text,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Screening results table
+CREATE TABLE IF NOT EXISTS public.screening_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+    screening_type text NOT NULL,
+    status text NOT NULL,
+    match_found boolean DEFAULT false NOT NULL,
+    match_details jsonb DEFAULT '{}',
+    risk_level text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Screening tasks table
+CREATE TABLE IF NOT EXISTS public.screening_tasks (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+    screening_type text NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    entity_name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Enhanced monitoring table
+CREATE TABLE IF NOT EXISTS public.enhanced_monitoring (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+    monitoring_type text NOT NULL,
+    status text NOT NULL DEFAULT 'active',
+    start_date date NOT NULL,
+    review_date date NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    UNIQUE(customer_id, monitoring_type)
+);
+
+-- AI analysis results table
+CREATE TABLE IF NOT EXISTS public.ai_analysis_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    entity_type text NOT NULL,
+    entity_id uuid NOT NULL,
+    analysis_type text NOT NULL,
+    risk_score numeric(5,2) NOT NULL,
+    risk_factors jsonb DEFAULT '{}',
+    recommendations text[] DEFAULT '{}',
+    confidence_level numeric(3,2) NOT NULL,
+    parameters jsonb DEFAULT '{}',
+    created_by uuid NOT NULL REFERENCES public.users(id),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Report generations table
+CREATE TABLE IF NOT EXISTS public.report_generations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    report_type text NOT NULL,
+    start_date date NOT NULL,
+    end_date date NOT NULL,
+    filters jsonb DEFAULT '{}',
+    format text NOT NULL DEFAULT 'json',
+    status text NOT NULL DEFAULT 'pending',
+    file_path text,
+    requested_by uuid NOT NULL REFERENCES public.users(id),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone
+);
+
+-- GDPR anonymization log table
+CREATE TABLE IF NOT EXISTS public.gdpr_anonymization_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+    anonymization_type text NOT NULL,
+    anonymized_at timestamp with time zone NOT NULL,
+    anonymized_records integer NOT NULL,
+    anonymization_metadata jsonb DEFAULT '{}'
+);
+
+-- ============================================================================
+-- AUDIT AND SECURITY TABLES (Phase 2)
+-- ============================================================================
+
+-- Audit logs table
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES public.users(id),
+    action text NOT NULL,
+    resource_type text NOT NULL,
+    resource_id uuid,
+    ip_address inet,
+    user_agent text,
+    request_id text,
+    method text,
+    endpoint text,
+    status_code integer,
+    request_data jsonb DEFAULT '{}',
+    response_data jsonb DEFAULT '{}',
+    duration_ms integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Security events table
+CREATE TABLE IF NOT EXISTS public.security_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id),
+    event_type text NOT NULL,
+    severity text NOT NULL,
+    source_ip inet,
+    user_id uuid REFERENCES public.users(id),
+    description text NOT NULL,
+    metadata jsonb DEFAULT '{}',
+    resolved boolean DEFAULT false NOT NULL,
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- File uploads table
+CREATE TABLE IF NOT EXISTS public.file_uploads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    uploaded_by uuid NOT NULL REFERENCES public.users(id),
+    original_filename text NOT NULL,
+    stored_filename text NOT NULL,
+    file_size bigint NOT NULL,
+    mime_type text NOT NULL,
+    file_hash text NOT NULL,
+    scan_status text NOT NULL DEFAULT 'pending',
+    scan_results jsonb DEFAULT '{}',
+    storage_path text NOT NULL,
+    is_quarantined boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- PERFORMANCE AND MONITORING TABLES (Phase 3)
+-- ============================================================================
+
+-- Performance metrics table
+CREATE TABLE IF NOT EXISTS public.performance_metrics (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id),
+    metric_name text NOT NULL,
+    metric_value numeric NOT NULL,
+    metric_unit text,
+    tags jsonb DEFAULT '{}',
+    timestamp timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- System health checks table
+CREATE TABLE IF NOT EXISTS public.system_health_checks (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    service_name text NOT NULL,
+    check_type text NOT NULL,
+    status text NOT NULL,
+    response_time_ms integer,
+    error_message text,
+    metadata jsonb DEFAULT '{}',
+    checked_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Database backup logs table
+CREATE TABLE IF NOT EXISTS public.backup_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    backup_type text NOT NULL,
+    status text NOT NULL,
+    file_path text,
+    file_size bigint,
+    duration_seconds integer,
+    error_message text,
+    metadata jsonb DEFAULT '{}',
+    started_at timestamp with time zone NOT NULL,
+    completed_at timestamp with time zone
+);
+
+-- ============================================================================
+-- INDEXES FOR PERFORMANCE (Phase 3)
+-- ============================================================================
+
+-- Authentication indexes
+CREATE INDEX IF NOT EXISTS idx_user_credentials_user_id ON public.user_credentials(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_credentials_password_hash ON public.user_credentials(password_hash);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user_id ON public.user_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_permissions_permission_id ON public.user_permissions(permission_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_tenant_id ON public.user_sessions(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON public.user_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON public.user_sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON public.user_sessions(expires_at);
+
+-- Notification indexes
+CREATE INDEX IF NOT EXISTS idx_notifications_tenant_id ON public.notifications(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON public.notifications(notification_type);
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON public.notifications(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON public.notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_notification_id ON public.notification_deliveries(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_channel ON public.notification_deliveries(channel);
+CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status ON public.notification_deliveries(status);
+
+-- Alert indexes
+CREATE INDEX IF NOT EXISTS idx_alerts_tenant_id ON public.alerts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_type ON public.alerts(alert_type);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON public.alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_status ON public.alerts(status);
+CREATE INDEX IF NOT EXISTS idx_alerts_assigned_to ON public.alerts(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_alerts_fingerprint ON public.alerts(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_alerts_created ON public.alerts(created_at);
+CREATE INDEX IF NOT EXISTS idx_alert_history_alert_id ON public.alert_history(alert_id);
+CREATE INDEX IF NOT EXISTS idx_alert_history_user_id ON public.alert_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_alert_history_created ON public.alert_history(created_at);
+
+-- Compliance indexes
+CREATE INDEX IF NOT EXISTS idx_compliance_programs_tenant_id ON public.compliance_programs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_programs_framework ON public.compliance_programs(framework);
+CREATE INDEX IF NOT EXISTS idx_compliance_programs_owner_id ON public.compliance_programs(owner_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_programs_active ON public.compliance_programs(is_active);
+CREATE INDEX IF NOT EXISTS idx_compliance_requirements_program_id ON public.compliance_requirements(program_id);
+CREATE INDEX IF NOT EXISTS idx_compliance_requirements_status ON public.compliance_requirements(status);
+CREATE INDEX IF NOT EXISTS idx_compliance_requirements_assigned_to ON public.compliance_requirements(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_compliance_requirements_due_date ON public.compliance_requirements(due_date);
+
+-- Task indexes
+CREATE INDEX IF NOT EXISTS idx_tasks_tenant_id ON public.tasks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_type ON public.tasks(task_type);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON public.tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_priority ON public.tasks(priority);
+CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON public.tasks(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON public.tasks(created_by);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON public.tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_created ON public.tasks(created_at);
+
+-- Screening indexes
+CREATE INDEX IF NOT EXISTS idx_screening_results_tenant_id ON public.screening_results(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_screening_results_customer_id ON public.screening_results(customer_id);
+CREATE INDEX IF NOT EXISTS idx_screening_results_type ON public.screening_results(screening_type);
+CREATE INDEX IF NOT EXISTS idx_screening_results_status ON public.screening_results(status);
+CREATE INDEX IF NOT EXISTS idx_screening_results_created ON public.screening_results(created_at);
+CREATE INDEX IF NOT EXISTS idx_screening_tasks_tenant_id ON public.screening_tasks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_screening_tasks_customer_id ON public.screening_tasks(customer_id);
+CREATE INDEX IF NOT EXISTS idx_screening_tasks_type ON public.screening_tasks(screening_type);
+CREATE INDEX IF NOT EXISTS idx_screening_tasks_status ON public.screening_tasks(status);
+
+-- Enhanced monitoring indexes
+CREATE INDEX IF NOT EXISTS idx_enhanced_monitoring_tenant_id ON public.enhanced_monitoring(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_enhanced_monitoring_customer_id ON public.enhanced_monitoring(customer_id);
+CREATE INDEX IF NOT EXISTS idx_enhanced_monitoring_type ON public.enhanced_monitoring(monitoring_type);
+CREATE INDEX IF NOT EXISTS idx_enhanced_monitoring_status ON public.enhanced_monitoring(status);
+CREATE INDEX IF NOT EXISTS idx_enhanced_monitoring_review_date ON public.enhanced_monitoring(review_date);
+
+-- AI analysis indexes
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_results_tenant_id ON public.ai_analysis_results(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_results_entity ON public.ai_analysis_results(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_results_type ON public.ai_analysis_results(analysis_type);
+CREATE INDEX IF NOT EXISTS idx_ai_analysis_results_created ON public.ai_analysis_results(created_at);
+
+-- Report generation indexes
+CREATE INDEX IF NOT EXISTS idx_report_generations_tenant_id ON public.report_generations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_report_generations_type ON public.report_generations(report_type);
+CREATE INDEX IF NOT EXISTS idx_report_generations_status ON public.report_generations(status);
+CREATE INDEX IF NOT EXISTS idx_report_generations_requested_by ON public.report_generations(requested_by);
+CREATE INDEX IF NOT EXISTS idx_report_generations_created ON public.report_generations(created_at);
+
+-- Audit indexes
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant_id ON public.audit_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON public.audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON public.audit_logs(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON public.audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_ip_address ON public.audit_logs(ip_address);
+
+-- Security event indexes
+CREATE INDEX IF NOT EXISTS idx_security_events_tenant_id ON public.security_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON public.security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON public.security_events(severity);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON public.security_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_source_ip ON public.security_events(source_ip);
+CREATE INDEX IF NOT EXISTS idx_security_events_created ON public.security_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_resolved ON public.security_events(resolved);
+
+-- File upload indexes
+CREATE INDEX IF NOT EXISTS idx_file_uploads_tenant_id ON public.file_uploads(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_file_uploads_uploaded_by ON public.file_uploads(uploaded_by);
+CREATE INDEX IF NOT EXISTS idx_file_uploads_scan_status ON public.file_uploads(scan_status);
+CREATE INDEX IF NOT EXISTS idx_file_uploads_quarantined ON public.file_uploads(is_quarantined);
+CREATE INDEX IF NOT EXISTS idx_file_uploads_created ON public.file_uploads(created_at);
+CREATE INDEX IF NOT EXISTS idx_file_uploads_hash ON public.file_uploads(file_hash);
+
+-- Performance monitoring indexes
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_tenant_id ON public.performance_metrics(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_name ON public.performance_metrics(metric_name);
+CREATE INDEX IF NOT EXISTS idx_performance_metrics_timestamp ON public.performance_metrics(timestamp);
+CREATE INDEX IF NOT EXISTS idx_system_health_checks_service ON public.system_health_checks(service_name);
+CREATE INDEX IF NOT EXISTS idx_system_health_checks_type ON public.system_health_checks(check_type);
+CREATE INDEX IF NOT EXISTS idx_system_health_checks_status ON public.system_health_checks(status);
+CREATE INDEX IF NOT EXISTS idx_system_health_checks_checked ON public.system_health_checks(checked_at);
+CREATE INDEX IF NOT EXISTS idx_backup_logs_type ON public.backup_logs(backup_type);
+CREATE INDEX IF NOT EXISTS idx_backup_logs_status ON public.backup_logs(status);
+CREATE INDEX IF NOT EXISTS idx_backup_logs_started ON public.backup_logs(started_at);
+
+-- ============================================================================
+-- ROW LEVEL SECURITY POLICIES (Phase 3)
+-- ============================================================================
+
+-- Enable RLS on all tenant-scoped tables
+ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_credentials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.compliance_programs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.compliance_requirements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.screening_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.screening_tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.enhanced_monitoring ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_analysis_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.report_generations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.file_uploads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.performance_metrics ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for tenant isolation
+CREATE POLICY tenant_isolation_policy ON public.tenants
+    FOR ALL TO authenticated
+    USING (id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.users
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.user_sessions
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.customers
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.transactions
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.notifications
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.alerts
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.compliance_programs
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.tasks
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.screening_results
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.screening_tasks
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.enhanced_monitoring
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.ai_analysis_results
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.report_generations
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.audit_logs
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+CREATE POLICY tenant_isolation_policy ON public.file_uploads
+    FOR ALL TO authenticated
+    USING (tenant_id = (current_setting('app.current_tenant_id', true))::uuid);
+
+-- Security events can be viewed by tenant or system administrators
+CREATE POLICY security_events_policy ON public.security_events
+    FOR ALL TO authenticated
+    USING (
+        tenant_id = (current_setting('app.current_tenant_id', true))::uuid
+        OR tenant_id IS NULL
+    );
+
+-- Performance metrics can be viewed by tenant or system administrators
+CREATE POLICY performance_metrics_policy ON public.performance_metrics
+    FOR ALL TO authenticated
+    USING (
+        tenant_id = (current_setting('app.current_tenant_id', true))::uuid
+        OR tenant_id IS NULL
+    );
+
+-- User credentials policy - users can only access their own credentials
+CREATE POLICY user_credentials_policy ON public.user_credentials
+    FOR ALL TO authenticated
+    USING (
+        user_id IN (
+            SELECT id FROM public.users
+            WHERE id = (current_setting('app.current_user_id', true))::uuid
+            AND tenant_id = (current_setting('app.current_tenant_id', true))::uuid
+        )
+    );
+
+-- User permissions policy - users can view their own permissions
+CREATE POLICY user_permissions_policy ON public.user_permissions
+    FOR SELECT TO authenticated
+    USING (
+        user_id = (current_setting('app.current_user_id', true))::uuid
+    );
+
+-- ============================================================================
+-- FUNCTIONS AND TRIGGERS (Phase 3)
+-- ============================================================================
+
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Add updated_at triggers to all relevant tables
+CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON public.tenants
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_credentials_updated_at BEFORE UPDATE ON public.user_credentials
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_sessions_updated_at BEFORE UPDATE ON public.user_sessions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON public.customers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_transactions_updated_at BEFORE UPDATE ON public.transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_notifications_updated_at BEFORE UPDATE ON public.notifications
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_alerts_updated_at BEFORE UPDATE ON public.alerts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_compliance_programs_updated_at BEFORE UPDATE ON public.compliance_programs
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_compliance_requirements_updated_at BEFORE UPDATE ON public.compliance_requirements
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON public.tasks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_screening_tasks_updated_at BEFORE UPDATE ON public.screening_tasks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_enhanced_monitoring_updated_at BEFORE UPDATE ON public.enhanced_monitoring
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Function to validate tenant access
+CREATE OR REPLACE FUNCTION validate_tenant_access()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Ensure tenant_id matches current session tenant
+    IF NEW.tenant_id != (current_setting('app.current_tenant_id', true))::uuid THEN
+        RAISE EXCEPTION 'Access denied: Invalid tenant ID';
+    END IF;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Add tenant validation triggers
+CREATE TRIGGER validate_tenant_access_users BEFORE INSERT OR UPDATE ON public.users
+    FOR EACH ROW EXECUTE FUNCTION validate_tenant_access();
+
+CREATE TRIGGER validate_tenant_access_customers BEFORE INSERT OR UPDATE ON public.customers
+    FOR EACH ROW EXECUTE FUNCTION validate_tenant_access();
+
+CREATE TRIGGER validate_tenant_access_transactions BEFORE INSERT OR UPDATE ON public.transactions
+    FOR EACH ROW EXECUTE FUNCTION validate_tenant_access();
+
+-- ============================================================================
+-- INITIAL DATA AND PERMISSIONS (Phase 3)
+-- ============================================================================
+
+-- Insert default permissions
+INSERT INTO public.permissions (name, description, category, resource, action) VALUES
+    ('auth.login', 'Login to the system', 'authentication', 'auth', 'login'),
+    ('users.read', 'View user information', 'user_management', 'users', 'read'),
+    ('users.create', 'Create new users', 'user_management', 'users', 'create'),
+    ('users.update', 'Update user information', 'user_management', 'users', 'update'),
+    ('users.delete', 'Delete users', 'user_management', 'users', 'delete'),
+    ('tenants.read', 'View tenant information', 'tenant_management', 'tenants', 'read'),
+    ('tenants.update', 'Update tenant settings', 'tenant_management', 'tenants', 'update'),
+    ('compliance.programs.read', 'View compliance programs', 'compliance', 'compliance_programs', 'read'),
+    ('compliance.programs.create', 'Create compliance programs', 'compliance', 'compliance_programs', 'create'),
+    ('compliance.programs.update', 'Update compliance programs', 'compliance', 'compliance_programs', 'update'),
+    ('compliance.programs.delete', 'Delete compliance programs', 'compliance', 'compliance_programs', 'delete'),
+    ('compliance.requirements.read', 'View compliance requirements', 'compliance', 'compliance_requirements', 'read'),
+    ('compliance.requirements.create', 'Create compliance requirements', 'compliance', 'compliance_requirements', 'create'),
+    ('compliance.requirements.update', 'Update compliance requirements', 'compliance', 'compliance_requirements', 'update'),
+    ('compliance.requirements.delete', 'Delete compliance requirements', 'compliance', 'compliance_requirements', 'delete'),
+    ('compliance.tasks.read', 'View compliance tasks', 'compliance', 'tasks', 'read'),
+    ('compliance.tasks.create', 'Create compliance tasks', 'compliance', 'tasks', 'create'),
+    ('compliance.tasks.update', 'Update compliance tasks', 'compliance', 'tasks', 'update'),
+    ('compliance.tasks.delete', 'Delete compliance tasks', 'compliance', 'tasks', 'delete'),
+    ('aml.customers.read', 'View customer AML information', 'aml', 'customers', 'read'),
+    ('aml.customers.screen', 'Screen customers for AML', 'aml', 'customers', 'screen'),
+    ('aml.transactions.monitor', 'Monitor transactions for AML', 'aml', 'transactions', 'monitor'),
+    ('aml.sar.create', 'Create Suspicious Activity Reports', 'aml', 'sar', 'create'),
+    ('aml.sar.read', 'View Suspicious Activity Reports', 'aml', 'sar', 'read'),
+    ('reports.read', 'View reports and analytics', 'reporting', 'reports', 'read'),
+    ('reports.create', 'Generate reports', 'reporting', 'reports', 'create'),
+    ('ai.analysis.trigger', 'Trigger AI analysis', 'ai', 'analysis', 'trigger'),
+    ('ai.insights.read', 'View AI insights', 'ai', 'insights', 'read'),
+    ('ai.models.manage', 'Manage AI models', 'ai', 'models', 'manage'),
+    ('alerts.read', 'View alerts', 'monitoring', 'alerts', 'read'),
+    ('alerts.acknowledge', 'Acknowledge alerts', 'monitoring', 'alerts', 'acknowledge'),
+    ('alerts.resolve', 'Resolve alerts', 'monitoring', 'alerts', 'resolve'),
+    ('system.admin', 'System administration access', 'system', 'system', 'admin')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
+-- COMMENTS AND DOCUMENTATION
+-- ============================================================================
+
+-- Add table comments
+COMMENT ON TABLE public.user_credentials IS 'User authentication credentials and security settings';
+COMMENT ON TABLE public.permissions IS 'System permissions and access control definitions';
+COMMENT ON TABLE public.user_permissions IS 'User-permission assignments with expiration support';
+COMMENT ON TABLE public.user_sessions IS 'Active user sessions and JWT token management';
+COMMENT ON TABLE public.notifications IS 'Multi-channel notification system';
+COMMENT ON TABLE public.notification_deliveries IS 'Notification delivery tracking and status';
+COMMENT ON TABLE public.alerts IS 'System alerts and compliance violations';
+COMMENT ON TABLE public.alert_history IS 'Alert action history and audit trail';
+COMMENT ON TABLE public.compliance_programs IS 'Regulatory compliance programs and frameworks';
+COMMENT ON TABLE public.compliance_requirements IS 'Individual compliance requirements and tasks';
+COMMENT ON TABLE public.tasks IS 'General task management and workflow';
+COMMENT ON TABLE public.screening_results IS 'Customer screening results (sanctions, PEP, etc.)';
+COMMENT ON TABLE public.screening_tasks IS 'Pending customer screening tasks';
+COMMENT ON TABLE public.enhanced_monitoring IS 'Enhanced monitoring assignments for high-risk customers';
+COMMENT ON TABLE public.ai_analysis_results IS 'AI-powered risk analysis and insights';
+COMMENT ON TABLE public.report_generations IS 'Report generation requests and status';
+COMMENT ON TABLE public.gdpr_anonymization_log IS 'GDPR data anonymization audit trail';
+COMMENT ON TABLE public.audit_logs IS 'Comprehensive system audit trail';
+COMMENT ON TABLE public.security_events IS 'Security incidents and threat detection';
+COMMENT ON TABLE public.file_uploads IS 'Secure file upload tracking and virus scanning';
+COMMENT ON TABLE public.performance_metrics IS 'System performance monitoring data';
+COMMENT ON TABLE public.system_health_checks IS 'Service health monitoring and status';
+COMMENT ON TABLE public.backup_logs IS 'Database backup execution logs';
 
 -- ============================================================================
 -- END OF SCHEMA
--- ============================================================================ 
+-- ============================================================================

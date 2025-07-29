@@ -1,0 +1,234 @@
+# Regulens AI - Horizontal Pod Autoscaler Configuration
+# Enterprise-grade auto-scaling for production workloads
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: regulens-ai-hpa
+  namespace: regulens-ai
+  labels:
+    app: regulens-ai
+    component: autoscaler
+    version: v1.0.0
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: regulens-ai
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # Custom metrics scaling
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  - type: Pods
+    pods:
+      metric:
+        name: database_connections_active
+      target:
+        type: AverageValue
+        averageValue: "50"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 4
+        periodSeconds: 60
+      selectPolicy: Max
+
+---
+# Redis HPA for caching layer
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: regulens-redis-hpa
+  namespace: regulens-ai
+  labels:
+    app: regulens-redis
+    component: autoscaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: regulens-redis
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 85
+  - type: Pods
+    pods:
+      metric:
+        name: redis_connected_clients
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 600  # 10 minutes
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+
+---
+# Vertical Pod Autoscaler for resource optimization
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: regulens-ai-vpa
+  namespace: regulens-ai
+  labels:
+    app: regulens-ai
+    component: vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: regulens-ai
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: regulens-ai
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4000m
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+      controlledValues: RequestsAndLimits
+
+---
+# Pod Disruption Budget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: regulens-ai-pdb
+  namespace: regulens-ai
+  labels:
+    app: regulens-ai
+    component: pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: regulens-ai
+
+---
+# Custom Resource for Application Autoscaler
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: autoscaling-config
+  namespace: regulens-ai
+  labels:
+    app: regulens-ai
+    component: config
+data:
+  scaling-rules.yaml: |
+    rules:
+      - name: high_load_scaling
+        condition: "avg(rate(http_requests_total[5m])) > 1000"
+        action:
+          type: scale_up
+          replicas: 5
+          duration: 300s
+      
+      - name: database_pressure_scaling
+        condition: "avg(database_connections_active) > 80"
+        action:
+          type: scale_up
+          replicas: 3
+          duration: 180s
+      
+      - name: memory_pressure_scaling
+        condition: "avg(container_memory_usage_bytes) / avg(container_spec_memory_limit_bytes) > 0.85"
+        action:
+          type: scale_up
+          replicas: 2
+          duration: 120s
+      
+      - name: low_load_scaling
+        condition: "avg(rate(http_requests_total[10m])) < 100 AND avg(container_cpu_usage_seconds_total) < 0.3"
+        action:
+          type: scale_down
+          replicas: -1
+          duration: 600s
+          min_replicas: 3
+  
+  thresholds.yaml: |
+    cpu:
+      scale_up_threshold: 70
+      scale_down_threshold: 30
+      stabilization_window: 300s
+    
+    memory:
+      scale_up_threshold: 80
+      scale_down_threshold: 40
+      stabilization_window: 300s
+    
+    requests_per_second:
+      scale_up_threshold: 100
+      scale_down_threshold: 20
+      stabilization_window: 180s
+    
+    database_connections:
+      scale_up_threshold: 50
+      scale_down_threshold: 10
+      stabilization_window: 240s
+    
+    response_time:
+      scale_up_threshold: 2000  # 2 seconds
+      scale_down_threshold: 500  # 0.5 seconds
+      stabilization_window: 120s

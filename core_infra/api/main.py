@@ -24,11 +24,10 @@ import structlog
 from core_infra.database.connection import init_database, close_database
 from core_infra.services.monitoring import setup_tracing, get_metrics
 from core_infra.api.middleware import (
-    RequestLoggingMiddleware,
     RateLimitMiddleware,
     TenantIsolationMiddleware,
     SecurityHeadersMiddleware,
-    AuditLogMiddleware
+    AuditLoggingMiddleware
 )
 from core_infra.api.auth import get_current_user, verify_tenant_access
 from core_infra.api.routes import (
@@ -43,9 +42,14 @@ from core_infra.api.routes import (
     ai_router,
     health_router
 )
+from core_infra.api.routes.ui_portals import router as ui_portals_router
+from core_infra.api.routes.security_testing import router as security_testing_router
 from core_infra.api.routes.phase6_ai import include_phase6_routes
 from core_infra.config import get_settings
-from core_infra.exceptions import ComplianceException, handle_compliance_exception
+from core_infra.exceptions import (
+    RegulensBaseException,
+    exception_to_http_exception
+)
 from core_infra.api.swagger_config import get_enhanced_openapi_schema, get_api_tags_metadata
 
 # Initialize structured logging
@@ -81,6 +85,14 @@ async def lifespan(app: FastAPI):
         # Start background monitoring tasks
         await start_background_tasks()
         logger.info("Background monitoring tasks started")
+
+        # Initialize UI portal managers
+        await init_ui_portals()
+        logger.info("UI portal managers initialized")
+
+        # Initialize auto-scaling controller
+        await init_autoscaling()
+        logger.info("Auto-scaling controller initialized")
         
         yield
         
@@ -107,6 +119,26 @@ async def init_ai_models():
         await initialize_models()
     except Exception as e:
         logger.warning(f"Failed to initialize AI models: {e}")
+
+
+async def init_ui_portals():
+    """Initialize UI portal managers."""
+    try:
+        from core_infra.ui import initialize_ui_portals
+        await initialize_ui_portals()
+        logger.info("UI portal framework initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize UI portals: {e}")
+
+
+async def init_autoscaling():
+    """Initialize auto-scaling controller."""
+    try:
+        from core_infra.autoscaling.controller import autoscaling_controller
+        await autoscaling_controller.initialize()
+        logger.info("Auto-scaling controller initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize auto-scaling: {e}")
 
 
 async def start_background_tasks():
@@ -196,20 +228,24 @@ if settings.rate_limit_enabled:
 if settings.tenant_isolation_enabled:
     app.add_middleware(TenantIsolationMiddleware)
 
-# Audit Logging
-app.add_middleware(AuditLogMiddleware)
+# Security Headers
+app.add_middleware(SecurityHeadersMiddleware)
 
-# Request Logging
-app.add_middleware(RequestLoggingMiddleware)
+# Audit Logging
+app.add_middleware(AuditLoggingMiddleware)
 
 # ============================================================================
 # EXCEPTION HANDLERS
 # ============================================================================
 
-@app.exception_handler(ComplianceException)
-async def compliance_exception_handler(request: Request, exc: ComplianceException):
-    """Handle custom compliance exceptions."""
-    return await handle_compliance_exception(request, exc)
+@app.exception_handler(RegulensBaseException)
+async def regulens_exception_handler(request: Request, exc: RegulensBaseException):
+    """Handle custom Regulens exceptions."""
+    http_exc = exception_to_http_exception(exc)
+    return JSONResponse(
+        status_code=http_exc.status_code,
+        content=http_exc.detail
+    )
 
 
 @app.exception_handler(HTTPException)
@@ -291,6 +327,12 @@ app.include_router(reports_router, prefix=f"/{settings.api_version}/reports", ta
 
 # AI and Insights
 app.include_router(ai_router, prefix=f"/{settings.api_version}/ai", tags=["AI Insights"])
+
+# UI Portals (Phase 4)
+app.include_router(ui_portals_router, tags=["UI Portals"])
+
+# Security Testing (Phase 5)
+app.include_router(security_testing_router, tags=["Security Testing"])
 
 # Phase 6 Advanced AI & Automation
 include_phase6_routes(app)
