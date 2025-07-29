@@ -1,22 +1,36 @@
 """
-Compliance Workflows Service
-Automated compliance workflow management and orchestration.
+Workflow service stubs
 """
+from typing import Dict, Any, List
 
-from .workflow_engine import WorkflowEngine, WorkflowState
-from .task_manager import TaskManager, ComplianceTask
-from .impact_assessor import ImpactAssessor, RegulatoryImpact
-from .orchestrator import WorkflowOrchestrator
-from .workflow_builder import WorkflowBuilder, WorkflowDefinition
+class WorkflowOrchestrator:
+    """Stub workflow orchestrator"""
+    
+    def __init__(self):
+        self.workflow_engine = WorkflowEngine()
+        self.task_manager = TaskManager()
+        self.impact_assessor = ImpactAssessor()
 
-__all__ = [
-    "WorkflowEngine",
-    "WorkflowState", 
-    "TaskManager",
-    "ComplianceTask",
-    "ImpactAssessor",
-    "RegulatoryImpact",
-    "WorkflowOrchestrator",
-    "WorkflowBuilder",
-    "WorkflowDefinition"
-] 
+class WorkflowEngine:
+    """Stub workflow engine"""
+    pass
+
+class TaskManager:
+    """Stub task manager"""
+    pass
+
+class ImpactAssessor:
+    """Stub impact assessor"""
+    pass
+
+class WorkflowDefinition:
+    """Stub workflow definition"""
+    pass
+
+class ComplianceTask:
+    """Stub compliance task"""
+    pass
+
+class RegulatoryImpact:
+    """Stub regulatory impact"""
+    pass 

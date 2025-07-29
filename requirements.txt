@@ -1,68 +1,96 @@
 # ============================================================================
-# REGULENS AI - FINANCIAL COMPLIANCE PLATFORM REQUIREMENTS
-# Enterprise-grade Python dependencies
+# REGULENSAI - ENTERPRISE FINANCIAL COMPLIANCE PLATFORM
+# Production Requirements - Single Source of Truth
 # ============================================================================
 
-# Core Web Framework
+# Core Web Framework & API
 fastapi>=0.104.1
 uvicorn[standard]>=0.24.0
 starlette>=0.27.0
 
-# Database
+# Database & Storage
 asyncpg>=0.29.0
 supabase>=2.0.0
 psycopg2-binary>=2.9.7
-
-# Async Support
-aiohttp>=3.9.0
-aiofiles>=23.2.0
-asyncio-mqtt>=0.16.1
-
-# Caching and Queues
 redis>=5.0.1
-celery>=5.3.4
+sqlalchemy[asyncio]>=2.0.0
 
-# Authentication and Security
+# Security & Authentication
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6
 cryptography>=41.0.7
+PyJWT>=2.8.0
 
-# Configuration Management
+# Configuration & Validation
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-decouple>=3.8
 
-# AI and Machine Learning
+# Async & HTTP
+aiohttp>=3.9.0
+aiofiles>=23.2.0
+httpx>=0.25.0
+requests>=2.31.0
+
+# AI & Machine Learning Core
 openai>=1.3.0
 anthropic>=0.7.0
-langchain>=0.0.340
-langsmith>=0.0.66
-fastembed>=0.1.3
+transformers>=4.35.0
+torch>=2.0.0
+torchvision>=0.15.0
 sentence-transformers>=2.2.2
+tiktoken>=0.5.0
 
-# Vector Database
-qdrant-client>=1.6.0
+# Data Science & Analytics
+numpy>=1.24.3
+pandas>=2.1.3
+scikit-learn>=1.3.2
+scipy>=1.11.4
+xgboost>=2.0.0
+lightgbm>=4.1.0
 
-# Document Processing
+# Natural Language Processing
+spacy>=3.7.2
+nltk>=3.8.1
+textblob>=0.17.1
+
+# Computer Vision & Document Processing
+opencv-python>=4.8.0
+Pillow>=10.1.0
+pytesseract>=0.3.10
 PyPDF2>=3.0.1
-pdfplumber>=0.10.3
 python-docx>=1.1.0
 openpyxl>=3.1.2
-beautifulsoup4>=4.12.2
-lxml>=4.9.3
 
-# Data Processing
-pandas>=2.1.3
-numpy>=1.24.3
-python-dateutil>=2.8.2
+# Vector Database & Embeddings
+qdrant-client>=1.6.0
+chromadb>=0.4.0
+faiss-cpu>=1.7.0
 
-# HTTP and Web Scraping
-requests>=2.31.0
-feedparser>=6.0.10
-scrapy>=2.11.0
+# Financial Data & Analysis
+yfinance>=0.2.22
+alpha-vantage>=2.3.1
+# ofxparse>=0.21  # Package not available - using alternative financial parsers
+quantlib>=1.32
+financepy>=0.350
 
-# Monitoring and Observability
+# Compliance & Risk Analytics
+riskfolio-lib>=5.1.1
+pyfolio>=0.9.2
+empyrical>=0.5.5
+
+# Time Series & Forecasting
+prophet>=1.1.4
+statsmodels>=0.14.0
+pmdarima>=2.0.4
+
+# Model Interpretation & Explainability
+shap>=0.43.0
+lime>=0.2.0.1
+eli5>=0.13.0
+
+# Monitoring & Observability
 structlog>=23.2.0
 opentelemetry-api>=1.21.0
 opentelemetry-sdk>=1.21.0
@@ -70,604 +98,187 @@ opentelemetry-instrumentation-fastapi>=0.42b0
 opentelemetry-exporter-jaeger>=1.21.0
 prometheus-client>=0.19.0
 
-# Email and Notifications
-emails>=0.6.0
-slack-sdk>=3.25.0
-
-# File Storage and Cloud
-boto3>=1.34.0
-azure-storage-blob>=12.19.0
-google-cloud-storage>=2.10.0
-
-# Scheduling and Background Tasks
+# Task Queue & Scheduling
+celery[redis]>=5.3.4
 schedule>=1.2.0
 apscheduler>=3.10.4
 
-# Data Validation and Serialization
-marshmallow>=3.20.1
-jsonschema>=4.20.0
-
-# Financial and Compliance Libraries
-ofxparse>=0.21
-# iso20022>=1.3.0  # Package not available, implement custom ISO20022 parsing if needed
-
-# Development and Testing
-pytest>=7.4.3
-pytest-asyncio>=0.21.1
-pytest-cov>=4.1.0
-httpx>=0.25.2
-factory-boy>=3.3.0
-
-# Code Quality
-black>=23.11.0
-isort>=5.12.0
-flake8>=6.1.0
-mypy>=1.7.1
-
-# Documentation
-mkdocs>=1.5.3
-mkdocs-material>=9.4.8
-
-# Utilities
-click>=8.1.7
-python-slugify>=8.0.1
-shortuuid>=1.0.11
-validators>=0.22.0
-
-# CORS and Middleware
-python-cors>=1.7.0
-
-# JSON Web Tokens
-pyjwt>=2.8.0
-
-# Environment Variables
-python-dotenv>=1.0.0
-
-# Regular Expressions
-regex>=2023.10.3
-
-# XML Processing
-xmltodict>=0.13.0
-
-# CSV Processing
-csvkit>=1.4.0
-
-# Time and Date Utilities
-arrow>=1.3.0
-pendulum>=2.1.2
-
-# Networking
-httpcore>=1.0.2
-dnspython>=2.4.2
-
-# Text Processing
-nltk>=3.8.1
-spacy>=3.7.2
-textblob>=0.17.1
-
-# Financial Calculations
-quantlib>=1.32
-financepy>=0.350
-
-# Compliance and Risk
-riskfolio-lib>=5.1.1
-
-# Data Analysis
-scipy>=1.11.4
-scikit-learn>=1.3.2
-
-# Visualization (for reports)
-matplotlib>=3.8.2
-plotly>=5.17.0
-
-# Excel Processing
-xlsxwriter>=3.1.9
-xlrd>=2.0.1
-
-# PDF Generation
-reportlab>=4.0.7
-weasyprint>=60.2
-
-# Image Processing
-pillow>=10.1.0
-
-# Encryption
-pyaes>=1.6.1
-rsa>=4.9
-
-# Network Security
-certifi>=2023.11.17
-
-# Memory Management
-memory-profiler>=0.61.0
-
-# System Monitoring
-psutil>=5.9.6
-
-# Geolocation (for compliance)
-geoip2>=4.7.0
-
-# Currency and Finance
-forex-python>=1.8
-yfinance>=0.2.22
-
-# Government Data APIs
-census>=0.8.22
-
-# Anti-Money Laundering
-aml-python>=0.1.0
-
-# Know Your Customer
-kyc-verification>=0.2.0
-
-# SWIFT/BIC Codes
-schwifty>=2023.9.0
-
-# IBAN Validation
-python-iban>=1.0.0
-
-# Phone Number Validation
-phonenumbers>=8.13.25
-
-# Country Codes
-pycountry>=22.3.0
-
-# Language Detection
-langdetect>=1.0.9
-
-# Fuzzy Matching
-fuzzywuzzy>=0.18.0
-python-levenshtein>=0.23.0
-
-# Graph Processing (for compliance networks)
-networkx>=3.2.1
-
-# Time Series Analysis
-statsmodels>=0.14.0
-
-# Database Migrations
-alembic>=1.13.0
-
-# API Documentation
-redoc>=2.1.3
-
-# WebSocket Support
-websockets>=12.0
-
-# Rate Limiting
-slowapi>=0.1.9
-
-# Health Checks
-health-check>=3.4.2
-
-# Feature Flags
-flagsmith>=3.5.0
-
-# Error Tracking
-sentry-sdk[fastapi]>=1.38.0
-
-# Performance Profiling
-py-spy>=0.3.14
-
-# Load Testing
-locust>=2.17.0
-
-# ============================================================================
-# PHASE 4: ADVANCED ANALYTICS & INTELLIGENCE DEPENDENCIES
-# ============================================================================
-
-# Enhanced Machine Learning Libraries
-xgboost>=2.0.0
-lightgbm>=4.1.0
-catboost>=1.2.2
-imbalanced-learn>=0.11.0
-
-# Time Series and Forecasting
-prophet>=1.1.4
-statsforecast>=1.6.0
-neuralprophet>=0.7.0
-pmdarima>=2.0.4
-
-# Model Interpretation and Explainability
-shap>=0.43.0
-lime>=0.2.0.1
-eli5>=0.13.0
-yellowbrick>=1.5
-
-# Advanced Statistics
-pingouin>=0.5.4
-bayesian-optimization>=1.4.3
-optuna>=3.4.0
-
-# Deep Learning (Optional)
-torch>=2.1.0
-tensorflow>=2.14.0
-keras>=2.14.0
-
-# Model Deployment and Serving
-mlflow>=2.8.0
-joblib>=1.3.2
-cloudpickle>=3.0.0
-
-# Performance Metrics and Monitoring
-evidently>=0.4.3
-alibi-detect>=0.12.0
-great-expectations>=0.18.0
-
-# Data Pipeline and ETL
-dask>=2023.11.0
-prefect>=2.14.0
-apache-airflow>=2.7.3
-
-# Advanced Data Processing
-polars>=0.19.0
-pyjanitor>=0.26.0
-feature-engine>=1.6.2
-
-# Optimization and Hyperparameter Tuning
-hyperopt>=0.2.7
-ray[tune]>=2.8.0
-sklearn-genetic-opt>=0.10.1
-
-# Anomaly Detection
-pyod>=1.1.2
-adtk>=0.6.2
-stumpy>=1.12.0
-
-# Risk Analytics
-pyfolio>=0.9.2
-empyrical>=0.5.5
-zipline>=3.0.0
-
-# Alternative Data Processing
-twitter-api>=2.0.0
-newsapi-python>=0.2.6
-alpha-vantage>=2.3.1
-
-# Compliance Analytics
-python-compliance>=0.1.0
-sox-analytics>=0.2.0
-gdpr-analytics>=0.1.0
-
-# Financial Risk Models
-pykalman>=0.9.5
-arch>=6.2.0
-pyflux>=0.4.18
-
-# Text Analytics for Regulatory Documents
-transformers>=4.35.0
-tokenizers>=0.15.0
-datasets>=2.14.0
-
-# Clustering and Segmentation
-hdbscan>=0.8.33
-umap-learn>=0.5.4
-pyclustering>=0.10.1
-
-# Causal Inference
-dowhy>=0.10.1
-causalml>=0.15.0
-causalimpact>=0.1.0
-
-# Model Validation and Testing
-hypothesis>=6.88.0
-pytest-benchmark>=4.0.0
-pytest-xdist>=3.4.0
-
-# Advanced Visualization for Analytics
-seaborn>=0.13.0
-bokeh>=3.3.0
-altair>=5.1.0
-streamlit>=1.28.0
-
-# Memory Optimization
-modin[ray]>=0.22.0
-cudf>=23.10.0
-cupy>=12.3.0
-
-# Parallel Computing
-multiprocessing-logging>=0.3.4
-pathos>=0.3.1
-distributed>=2023.11.0
-
-# Model Compression
-onnx>=1.15.0
-onnxruntime>=1.16.0
-pruning>=0.1.0
-
-# Financial Data APIs
-quandl>=3.7.0
-pandas-datareader>=0.10.0
-investpy>=1.0.8
-
-# Credit Risk Modeling
-credit-risk>=0.1.0
-pd-models>=0.2.0
-scorecard>=0.1.0
-
-# Fraud Detection
-fraud-detection>=0.1.0
-isolation-forest>=0.2.0
-one-class-svm>=0.1.0
-
-# AML Analytics
-aml-analytics>=0.1.0
-transaction-monitoring>=0.2.0
-sanctions-screening>=0.1.0
-
-# Regulatory Reporting
-basel-iii>=0.1.0
-ifrs-17>=0.1.0
-cecl>=0.1.0
-
-# ESG Analytics
-esg-scores>=0.1.0
-climate-risk>=0.1.0
-sustainability-metrics>=0.1.0
-
-# Advanced Caching for Analytics
-redis-py-cluster>=2.1.3
-memcached>=1.6.0
-pymemcache>=4.0.0
-
-# Graph Analytics for Networks
-igraph>=0.10.8
-graph-tool>=2.45
-community>=1.0.0
-
-# Geospatial Analytics
-geopandas>=0.14.0
-folium>=0.15.0
-contextily>=1.4.0
-
-# Real-time Analytics
-kafka-python>=2.0.2
-confluent-kafka>=2.3.0
-streamz>=0.6.4
-
-# Model Monitoring in Production
-whylogs>=1.3.0
-deepchecks>=0.17.0
-nannyml>=0.10.0
-
-# Advanced Model Interpretation
-anchor-exp>=0.0.2
-counterfactual-explanations>=0.1.0
-fairlearn>=0.9.0
-
-# Automated Feature Engineering
-featuretools>=1.28.0
-tsfresh>=0.20.0
-autofeat>=2.1.0
-
-# Model Selection and Validation
-mlxtend>=0.23.0
-tpot>=0.12.0
-pycaret>=3.1.0
-
-# Advanced Analytics for Time Series
-tslearn>=0.6.2
-sktime>=0.24.0
-darts>=0.25.0
-
-# Causal Discovery
-causal-learn>=0.1.3
-pgmpy>=0.1.24
-bnlearn>=0.7.14
-
-# Synthetic Data Generation
-sdv>=1.8.0
-faker>=20.1.0
-synthetic-data>=0.1.0
-
-# Model Governance and Lineage
-dvc>=3.26.0
-mlflow-tracking>=0.1.0
-weights-and-biases>=0.16.0
-
-# Financial Mathematics
-quantlib-python>=1.32
-finmath>=0.3.0
-derivative-pricing>=0.1.0
-
-# Stress Testing
-stress-testing>=0.1.0
-scenario-analysis>=0.1.0
-monte-carlo>=0.2.0
-
-# ============================================================================
-# PHASE 5: ENTERPRISE INTEGRATIONS DEPENDENCIES
-# ============================================================================
-
-# HTTP Client Libraries for API Integration
-aiohttp>=3.9.0
-httpx>=0.25.0
-requests>=2.31.0
-requests-oauthlib>=1.3.1
-urllib3>=2.0.0
-
-# Authentication and Security
-PyJWT>=2.8.0
-cryptography>=41.0.0
-python-jose[cryptography]>=3.3.0
-azure-identity>=1.15.0
-google-auth>=2.25.0
+# Cloud Storage & Enterprise Integration
 boto3>=1.34.0
 azure-storage-blob>=12.19.0
+google-cloud-storage>=2.10.0
+azure-identity>=1.15.0
+google-auth>=2.25.0
 
-# Microsoft Graph API (SharePoint/OneDrive)
+# Microsoft Integration
 msgraph-core>=0.2.2
 msal>=1.25.0
 office365-rest-python-client>=2.5.0
 
-# Box API
-boxsdk[jwt]>=3.9.0
-
 # Google APIs
 google-api-python-client>=2.110.0
 google-auth-httplib2>=0.2.0
-google-auth-oauthlib>=1.2.0
 
-# AWS SDK
-boto3>=1.34.0
-botocore>=1.34.0
-
-# Azure SDK
-azure-storage-blob>=12.19.0
-azure-identity>=1.15.0
-azure-keyvault-secrets>=4.7.0
-
-# Database Connectors for Core Banking
-sqlalchemy[asyncio]>=2.0.0
-asyncpg>=0.29.0
+# Database Connectors
 pyodbc>=5.0.0
 cx-Oracle>=8.3.0
 pymongo>=4.6.0
 
-# XML Processing for External Data
-lxml>=4.9.0
-xmltodict>=0.13.0
-defusedxml>=0.7.1
+# Web Scraping & Data Collection
+scrapy>=2.11.0
+beautifulsoup4>=4.12.2
+selenium>=4.15.0
+feedparser>=6.0.10
 
-# File Processing and Document Management
-python-docx>=1.1.0
-PyPDF2>=3.0.0
-python-pptx>=0.6.23
-openpyxl>=3.1.0
-xlrd>=2.0.1
-python-magic>=0.4.27
-filetype>=1.2.0
+# Email & Communications
+emails>=0.6.0
+slack-sdk>=3.25.0
+sendgrid>=6.11.0
 
-# Text Processing and OCR
-pytesseract>=0.3.10
-Pillow>=10.1.0
-pdf2image>=1.17.0
-python-docx2txt>=0.8
-
-# Fuzzy Matching for Sanctions Screening
+# Text Processing & Fuzzy Matching
 fuzzywuzzy>=0.18.0
-python-Levenshtein>=0.23.0
+python-levenshtein>=0.23.0
 rapidfuzz>=3.5.0
 
-# Circuit Breaker and Resilience Patterns
-pybreaker>=1.0.1
+# XML & File Processing
+lxml>=4.9.3
+xmltodict>=0.13.0
+defusedxml>=0.7.1
+python-magic>=0.4.27
+
+# Financial Validation & Standards
+pycountry>=23.12.11
+phonenumbers>=8.13.25
+schwifty>=2023.9.0
+
+# AML & Compliance Libraries (using proven packages)
+# Note: Custom AML/KYC logic implemented in core services
+
+# Utilities & Date Handling
+python-dateutil>=2.8.2
+itsdangerous>=2.1.0
+arrow>=1.3.0
+pytz>=2023.3
+
+# Data Validation & Serialization
+marshmallow>=3.20.1
+jsonschema>=4.20.0
+cerberus>=1.3.5
+
+# Enterprise Patterns
 tenacity>=8.2.0
+pybreaker>=1.0.1
 backoff>=2.2.1
 
-# Rate Limiting
-slowapi>=0.1.9
-limits>=3.7.0
+# Performance & Caching
+redis>=5.0.1
+python-memcached>=1.59
 
-# Monitoring and Observability
-prometheus-client>=0.19.0
-structlog>=23.2.0
-py-zipkin>=0.20.2
-
-# Task Queue and Background Jobs
-celery[redis]>=5.3.0
-kombu>=5.3.0
-
-# Configuration Management
-dynaconf>=3.2.0
-python-decouple>=3.8
-
-# Enterprise Service Bus / Message Queue
+# Message Queues
 pika>=1.3.0
 kafka-python>=2.0.2
 
-# Caching for Integration Performance
-redis>=5.0.0
-python-memcached>=1.59
-
-# API Documentation and Testing
-fastapi-utils>=0.2.1
-pydantic-extra-types>=2.4.0
-
-# Scheduling and Cron Jobs
-apscheduler>=3.10.0
-croniter>=2.0.0
-
-# Data Validation and Quality
-cerberus>=1.3.5
-schema>=0.7.5
-marshmallow>=3.20.0
-
-# Cost Tracking and Analytics
-stripe>=7.9.0
-requests-cache>=1.1.0
-
-# Enterprise Logging
-python-json-logger>=2.0.0
-colorlog>=6.8.0
-
-# Error Tracking and Alerting
+# Error Tracking & Health Checks
 sentry-sdk[fastapi]>=1.39.0
-
-# Health Checks
 healthcheck>=1.3.3
 
-# API Versioning
+# API Features
+slowapi>=0.1.9
 fastapi-versioning>=0.10.0
 
-# SOAP Client (for legacy systems)
-zeep>=4.2.1
-suds-community>=1.1.0
+# Enterprise Directory
+# python-ldap>=3.4.0  # Requires system LDAP libraries - using ldap3 pure Python implementation
+ldap3>=2.9.1
 
-# FTP/SFTP for File Transfer
+# File Transfer & Network
 paramiko>=3.4.0
 pysftp>=0.2.9
 
-# Email Integration
-sendgrid>=6.11.0
-python-email-validator>=2.1.0
+# Legacy System Integration
+zeep>=4.2.1
+suds-community>=1.1.0
 
-# Webhook Processing
-webhooks>=0.5.0
+# Visualization & Reporting
+matplotlib>=3.8.2
+plotly>=5.17.0
+seaborn>=0.13.0
+reportlab>=4.0.7
 
-# Enterprise Directory Integration (LDAP/AD)
-python-ldap>=3.4.0
-ldap3>=2.9.1
-
-# Time Zone Handling
-pytz>=2023.3
-tzlocal>=5.2
-
-# UUID and ID Generation
-shortuuid>=1.0.11
-
-# Data Compression
-zstandard>=0.22.0
-
-# Enterprise Patterns
-factory-boy>=3.3.0
-dependency-injector>=4.41.0
-
-# Workflow and State Machine
-pytransitions>=0.9.0
-
-# Enterprise Metrics
-statsd>=4.0.1
-
-# Advanced HTTP Features
-httpx-oauth>=0.12.0
-httpx-caching>=0.13.0
-
-# Financial Data Validation
-pycountry>=23.12.11
-iso4217>=1.10.20230401
-
-# Compliance and Audit
-audit-log>=0.1.0
-
-# Enterprise Integration Testing
-responses>=0.24.0
-httpretty>=1.1.4
+# Testing & Quality Assurance
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
 pytest-httpx>=0.27.0
+factory-boy>=3.3.0
+responses>=0.24.0
+
+# Code Quality & Documentation
+black>=23.11.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.1
+mkdocs>=1.5.3
+mkdocs-material>=9.4.8
 
 # Performance Monitoring
 py-spy>=0.3.14
 memory-profiler>=0.61.0
+psutil>=5.9.6
 
 # Advanced Serialization
 orjson>=3.9.0
-msgpack>=1.0.0 
+msgpack>=1.0.0
+
+# Network & Security
+certifi>=2023.11.17
+dnspython>=2.4.2
+httpcore>=1.0.2
+
+# ID Generation & Utilities
+shortuuid>=1.0.11
+python-slugify>=8.0.1
+validators>=0.22.0
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+dynaconf>=3.2.0
+
+# Regular Expressions & Text
+regex>=2023.10.3
+langdetect>=1.0.9
+
+# Data Compression
+zstandard>=0.22.0
+
+# Enterprise Metrics
+statsd>=4.0.1
+
+# Advanced Analytics
+mlflow>=2.8.0
+evidently>=0.4.3
+great-expectations>=0.18.0
+
+# Excel & CSV Processing
+xlsxwriter>=3.1.9
+xlrd>=2.0.1
+csvkit>=1.4.0
+
+# Geospatial & Location
+geoip2>=4.7.0
+geopandas>=0.14.0
+
+# Currency & Forex
+forex-python>=1.8
+
+# Workflow Management
+pytransitions>=0.9.0
+
+# Advanced Data Processing
+polars>=0.19.0
+dask>=2023.11.0
+
+# Model Deployment
+joblib>=1.3.2
+cloudpickle>=3.0.0
+onnx>=1.15.0
+onnxruntime>=1.16.0 

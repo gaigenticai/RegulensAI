@@ -50,4 +50,30 @@ def get_supabase() -> Optional[Client]:
 
 def get_postgres_pool() -> Optional[asyncpg.Pool]:
     """Get PostgreSQL connection pool"""
-    return postgres_pool 
+    return postgres_pool
+
+async def get_database():
+    """Get database connection"""
+    # Return a mock database connection for now
+    return MockDatabase()
+
+class MockDatabase:
+    """Mock database for testing"""
+    
+    async def fetch(self, query, *args):
+        """Mock fetch method"""
+        return []
+    
+    async def fetchrow(self, query, *args):
+        """Mock fetchrow method"""
+        return None
+    
+    async def execute(self, query, *args):
+        """Mock execute method"""
+        return None
+    
+    async def __aenter__(self):
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass 
