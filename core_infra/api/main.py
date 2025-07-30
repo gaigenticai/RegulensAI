@@ -95,7 +95,23 @@ async def lifespan(app: FastAPI):
         # Initialize auto-scaling controller
         await init_autoscaling()
         logger.info("Auto-scaling controller initialized")
-        
+
+        # Initialize backup service
+        await init_backup_service()
+        logger.info("Backup service initialized")
+
+        # Initialize centralized logging
+        await init_centralized_logging()
+        logger.info("Centralized logging system initialized")
+
+        # Initialize APM system
+        await init_apm_system()
+        logger.info("APM system initialized")
+
+        # Initialize disaster recovery system
+        await init_disaster_recovery_system()
+        logger.info("Disaster recovery system initialized")
+
         yield
         
     except Exception as e:
@@ -112,6 +128,22 @@ async def lifespan(app: FastAPI):
         # Stop background tasks
         await stop_background_tasks()
         logger.info("Background tasks stopped")
+
+        # Stop backup service
+        await stop_backup_service()
+        logger.info("Backup service stopped")
+
+        # Stop centralized logging
+        await stop_centralized_logging()
+        logger.info("Centralized logging system stopped")
+
+        # Stop APM system
+        await stop_apm_system()
+        logger.info("APM system stopped")
+
+        # Stop disaster recovery system
+        await stop_disaster_recovery_system()
+        logger.info("Disaster recovery system stopped")
 
 
 async def init_ai_models():
@@ -169,6 +201,70 @@ async def stop_background_tasks():
         await asyncio.gather(*tasks, return_exceptions=True)
     except Exception as e:
         logger.warning(f"Error stopping background tasks: {e}")
+
+async def init_backup_service():
+    """Initialize backup service."""
+    try:
+        from core_infra.services.backup_service import backup_service
+        await backup_service.start()
+    except Exception as e:
+        logger.warning(f"Failed to initialize backup service: {e}")
+
+async def stop_backup_service():
+    """Stop backup service."""
+    try:
+        from core_infra.services.backup_service import backup_service
+        await backup_service.stop()
+    except Exception as e:
+        logger.warning(f"Error stopping backup service: {e}")
+
+async def init_centralized_logging():
+    """Initialize centralized logging system."""
+    try:
+        from core_infra.logging.centralized_logging import init_centralized_logging
+        await init_centralized_logging()
+    except Exception as e:
+        logger.warning(f"Failed to initialize centralized logging: {e}")
+
+async def stop_centralized_logging():
+    """Stop centralized logging system."""
+    try:
+        from core_infra.logging.centralized_logging import stop_centralized_logging
+        await stop_centralized_logging()
+    except Exception as e:
+        logger.warning(f"Error stopping centralized logging: {e}")
+
+async def init_apm_system():
+    """Initialize APM system."""
+    try:
+        from core_infra.monitoring.apm_integration import init_apm
+        await init_apm()
+    except Exception as e:
+        logger.warning(f"Failed to initialize APM system: {e}")
+
+async def stop_apm_system():
+    """Stop APM system."""
+    try:
+        from core_infra.monitoring.apm_integration import shutdown_apm
+        await shutdown_apm()
+    except Exception as e:
+        logger.warning(f"Error stopping APM system: {e}")
+
+async def init_disaster_recovery_system():
+    """Initialize disaster recovery system."""
+    try:
+        from core_infra.disaster_recovery.dr_manager import init_disaster_recovery
+        await init_disaster_recovery()
+    except Exception as e:
+        logger.warning(f"Failed to initialize disaster recovery system: {e}")
+
+async def stop_disaster_recovery_system():
+    """Stop disaster recovery system."""
+    try:
+        from core_infra.disaster_recovery.dr_manager import shutdown_disaster_recovery
+        await shutdown_disaster_recovery()
+    except Exception as e:
+        logger.warning(f"Error stopping disaster recovery system: {e}")
 
 
 # Create FastAPI application
@@ -332,6 +428,10 @@ app.include_router(ai_router, prefix=f"/{settings.api_version}/ai", tags=["AI In
 
 # Operations and Deployment
 app.include_router(operations_router, prefix=f"/{settings.api_version}/operations", tags=["Operations"])
+
+# Disaster Recovery
+from core_infra.api.routes.disaster_recovery import router as dr_router
+app.include_router(dr_router, prefix=f"/{settings.api_version}/disaster-recovery", tags=["Disaster Recovery"])
 
 # UI Portals (Phase 4)
 app.include_router(ui_portals_router, tags=["UI Portals"])

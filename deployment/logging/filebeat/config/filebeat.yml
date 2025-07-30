@@ -1,0 +1,321 @@
+# RegulensAI Filebeat Configuration
+# Log shipping and collection agent
+
+# ============================================================================
+# FILEBEAT INPUTS
+# ============================================================================
+
+filebeat.inputs:
+  # RegulensAI application logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/regulensai/*.log
+      - /var/log/regulensai/**/*.log
+    fields:
+      service: regulensai
+      environment: "${ENVIRONMENT:production}"
+      log_type: application
+    fields_under_root: true
+    multiline.pattern: '^\d{4}-\d{2}-\d{2}'
+    multiline.negate: true
+    multiline.match: after
+    json.keys_under_root: true
+    json.add_error_key: true
+    processors:
+      - add_host_metadata:
+          when.not.contains.tags: forwarded
+      - add_docker_metadata: ~
+      - add_kubernetes_metadata: ~
+
+  # Docker container logs
+  - type: container
+    enabled: true
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+      - decode_json_fields:
+          fields: ["message"]
+          target: ""
+          overwrite_keys: true
+    fields:
+      service: docker
+      log_type: container
+    fields_under_root: true
+
+  # System logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/syslog
+      - /var/log/auth.log
+      - /var/log/kern.log
+    fields:
+      service: system
+      log_type: syslog
+    fields_under_root: true
+
+  # Nginx/Apache logs (if present)
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/nginx/*.log
+      - /var/log/apache2/*.log
+      - /var/log/httpd/*.log
+    fields:
+      service: webserver
+      log_type: access
+    fields_under_root: true
+
+  # Database logs
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/postgresql/*.log
+      - /var/log/mysql/*.log
+    fields:
+      service: database
+      log_type: database
+    fields_under_root: true
+
+# ============================================================================
+# FILEBEAT MODULES
+# ============================================================================
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+
+# Output to Logstash
+output.logstash:
+  hosts: ["${LOGSTASH_HOSTS:logstash:5044}"]
+  compression_level: 3
+  bulk_max_size: 2048
+  template.name: "regulensai-logs"
+  template.pattern: "regulensai-*"
+
+# Alternative: Direct output to Elasticsearch (uncomment if not using Logstash)
+# output.elasticsearch:
+#   hosts: ["${ELASTICSEARCH_HOSTS:elasticsearch:9200}"]
+#   username: "${ELASTICSEARCH_USERNAME:elastic}"
+#   password: "${ELASTICSEARCH_PASSWORD}"
+#   index: "regulensai-logs-%{+yyyy.MM.dd}"
+#   template.name: "regulensai-logs"
+#   template.pattern: "regulensai-*"
+#   template.settings:
+#     index.number_of_shards: 1
+#     index.number_of_replicas: 1
+
+# ============================================================================
+# PROCESSORS
+# ============================================================================
+
+processors:
+  # Add timestamp
+  - timestamp:
+      field: "@timestamp"
+      layouts:
+        - '2006-01-02T15:04:05.000Z'
+        - '2006-01-02T15:04:05Z'
+      test:
+        - '2023-01-01T12:00:00.000Z'
+
+  # Add host information
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+      netinfo.enabled: false
+      cache.ttl: 5m
+      geo.name: us-east-1
+
+  # Add process metadata
+  - add_process_metadata:
+      match_pids: [system.process.ppid]
+      target: system.process.parent
+
+  # Drop empty events
+  - drop_event:
+      when:
+        equals:
+          message: ""
+
+  # Parse JSON logs
+  - decode_json_fields:
+      fields: ["message"]
+      process_array: false
+      max_depth: 1
+      target: ""
+      overwrite_keys: false
+      add_error_key: true
+
+  # Extract log level
+  - script:
+      lang: javascript
+      id: extract_log_level
+      source: >
+        function process(event) {
+          var message = event.Get("message");
+          if (message) {
+            var levelMatch = message.match(/\b(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL|FATAL)\b/i);
+            if (levelMatch) {
+              event.Put("log.level", levelMatch[1].toUpperCase());
+            }
+          }
+        }
+
+  # Categorize logs
+  - script:
+      lang: javascript
+      id: categorize_logs
+      source: >
+        function process(event) {
+          var message = event.Get("message");
+          var service = event.Get("service");
+          
+          if (message) {
+            if (message.match(/\b(login|logout|auth|permission|access denied)\b/i)) {
+              event.Put("log.category", "security");
+            } else if (message.match(/\b(error|exception|failed|failure)\b/i)) {
+              event.Put("log.category", "error");
+            } else if (message.match(/\b(performance|slow|timeout|latency)\b/i)) {
+              event.Put("log.category", "performance");
+            } else if (message.match(/\b(audit|compliance|regulation)\b/i)) {
+              event.Put("log.category", "audit");
+            } else if (service === "database") {
+              event.Put("log.category", "database");
+            } else {
+              event.Put("log.category", "application");
+            }
+          }
+        }
+
+  # Add environment tags
+  - add_tags:
+      tags: ["regulensai", "${ENVIRONMENT:production}"]
+      target: "tags"
+
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /usr/share/filebeat/logs
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# ============================================================================
+# MONITORING CONFIGURATION
+# ============================================================================
+
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS:elasticsearch:9200}"]
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD}"
+
+# ============================================================================
+# PERFORMANCE TUNING
+# ============================================================================
+
+# Queue settings
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 5s
+
+# Harvester settings
+filebeat.registry.path: /usr/share/filebeat/data/registry
+filebeat.registry.file_permissions: 0600
+filebeat.registry.flush: 0s
+
+# Input settings
+filebeat.inputs:
+  - close_inactive: 5m
+    close_removed: true
+    close_renamed: false
+    clean_inactive: 72h
+    ignore_older: 24h
+    scan_frequency: 10s
+    harvester_buffer_size: 16384
+    max_bytes: 10485760
+
+# ============================================================================
+# SECURITY CONFIGURATION
+# ============================================================================
+
+# SSL/TLS settings (if using secure connections)
+# output.logstash:
+#   ssl.enabled: true
+#   ssl.certificate_authorities: ["/etc/ssl/certs/ca.crt"]
+#   ssl.certificate: "/etc/ssl/certs/client.crt"
+#   ssl.key: "/etc/ssl/private/client.key"
+
+# ============================================================================
+# AUTODISCOVER CONFIGURATION
+# ============================================================================
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      hints.default_config:
+        type: container
+        paths:
+          - /var/lib/docker/containers/${data.docker.container.id}/*.log
+
+# ============================================================================
+# CUSTOM FIELDS
+# ============================================================================
+
+fields:
+  datacenter: "${DATACENTER:us-east-1}"
+  cluster: "${CLUSTER:production}"
+  node_name: "${NODE_NAME:filebeat-node}"
+
+fields_under_root: false
+
+# ============================================================================
+# HTTP ENDPOINT (for health checks)
+# ============================================================================
+
+http.enabled: true
+http.host: "0.0.0.0"
+http.port: 5066
+
+# ============================================================================
+# SETUP CONFIGURATION
+# ============================================================================
+
+setup.template.enabled: true
+setup.template.name: "regulensai-logs"
+setup.template.pattern: "regulensai-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 1
+  index.refresh_interval: 30s
+
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "regulensai-logs"
+setup.ilm.pattern: "regulensai-*"
+setup.ilm.policy: "regulensai-logs-policy"
+
+# ============================================================================
+# KIBANA SETUP
+# ============================================================================
+
+setup.kibana:
+  host: "http://kibana:5601"
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD}"
+
+setup.dashboards.enabled: true
+setup.dashboards.index: "regulensai-*"

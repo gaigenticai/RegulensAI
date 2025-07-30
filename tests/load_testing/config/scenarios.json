@@ -1,0 +1,134 @@
+{
+  "scenarios": {
+    "smoke_test": {
+      "description": "Basic smoke test with minimal load",
+      "users": 5,
+      "spawn_rate": 1,
+      "run_time": "60s",
+      "host": "http://localhost:8000",
+      "user_classes": ["APILoadTestUser"],
+      "tags": ["smoke", "basic"]
+    },
+    "load_test": {
+      "description": "Standard load test simulating normal traffic",
+      "users": 50,
+      "spawn_rate": 5,
+      "run_time": "300s",
+      "host": "http://localhost:8000",
+      "user_classes": ["SteadyStateScenario"],
+      "tags": ["load", "normal"]
+    },
+    "stress_test": {
+      "description": "Stress test to find breaking points",
+      "users": 200,
+      "spawn_rate": 10,
+      "run_time": "600s",
+      "host": "http://localhost:8000",
+      "user_classes": ["HighVolumeUser", "PeakLoadScenario"],
+      "tags": ["stress", "breaking_point"]
+    },
+    "spike_test": {
+      "description": "Spike test with sudden traffic increase",
+      "users": 100,
+      "spawn_rate": 50,
+      "run_time": "180s",
+      "host": "http://localhost:8000",
+      "user_classes": ["HighVolumeUser"],
+      "tags": ["spike", "sudden_load"]
+    },
+    "endurance_test": {
+      "description": "Long-running endurance test",
+      "users": 30,
+      "spawn_rate": 3,
+      "run_time": "1800s",
+      "host": "http://localhost:8000",
+      "user_classes": ["SteadyStateScenario"],
+      "tags": ["endurance", "long_running"]
+    },
+    "database_intensive": {
+      "description": "Database-focused load testing",
+      "users": 40,
+      "spawn_rate": 4,
+      "run_time": "300s",
+      "host": "http://localhost:8000",
+      "user_classes": ["DatabaseLoadTestUser"],
+      "tags": ["database", "queries"]
+    },
+    "api_focused": {
+      "description": "API endpoint focused testing",
+      "users": 60,
+      "spawn_rate": 6,
+      "run_time": "240s",
+      "host": "http://localhost:8000",
+      "user_classes": ["APILoadTestUser"],
+      "tags": ["api", "endpoints"]
+    },
+    "monitoring_test": {
+      "description": "Monitoring system load testing",
+      "users": 25,
+      "spawn_rate": 5,
+      "run_time": "180s",
+      "host": "http://localhost:8000",
+      "user_classes": ["MonitoringLoadTestUser"],
+      "tags": ["monitoring", "metrics"]
+    }
+  },
+  "environments": {
+    "local": {
+      "host": "http://localhost:8000",
+      "description": "Local development environment"
+    },
+    "staging": {
+      "host": "https://staging.regulens.ai",
+      "description": "Staging environment"
+    },
+    "production": {
+      "host": "https://api.regulens.ai",
+      "description": "Production environment (use with caution)"
+    }
+  },
+  "performance_thresholds": {
+    "response_time": {
+      "p50": 500,
+      "p95": 2000,
+      "p99": 5000
+    },
+    "error_rate": {
+      "max_percentage": 1.0
+    },
+    "throughput": {
+      "min_rps": 10
+    }
+  },
+  "test_data": {
+    "users": {
+      "count": 100,
+      "username_prefix": "load_test_user_",
+      "password": "test_password_123"
+    },
+    "search_terms": [
+      "Basel III",
+      "GDPR",
+      "SOX",
+      "MiFID II",
+      "CCAR",
+      "stress testing",
+      "capital requirements",
+      "risk management",
+      "compliance monitoring",
+      "regulatory reporting"
+    ],
+    "jurisdictions": ["US", "EU", "UK", "GLOBAL", "APAC"],
+    "categories": ["banking", "securities", "insurance", "fintech"],
+    "metrics": [
+      "cpu_usage",
+      "memory_usage",
+      "disk_usage",
+      "network_io",
+      "database_connections",
+      "api_response_time",
+      "error_rate",
+      "throughput"
+    ]
+  }
+}

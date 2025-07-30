@@ -17,6 +17,7 @@ import Operations from './pages/Operations';
 import SystemHealth from './pages/SystemHealth';
 import UserManagement from './pages/UserManagement';
 import Settings from './pages/Settings';
+import { DocumentationPortal } from './components/documentation';
 
 // Create Material-UI theme
 const theme = createTheme({
@@ -89,6 +90,7 @@ function App() {
                 <Route path="system" element={<SystemHealth />} />
                 <Route path="users" element={<UserManagement />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="documentation" element={<DocumentationPortal />} />
               </Route>
 
               {/* Catch all route */}

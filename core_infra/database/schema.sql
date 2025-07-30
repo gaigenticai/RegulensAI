@@ -915,6 +915,227 @@ CREATE INDEX IF NOT EXISTS idx_transactions_aml_status ON public.transactions(am
 CREATE INDEX IF NOT EXISTS idx_compliance_requirements_status ON public.compliance_requirements(compliance_status);
 CREATE INDEX IF NOT EXISTS idx_regulatory_documents_impact_level ON public.regulatory_documents(impact_level);
 
+-- Credential management indexes
+CREATE INDEX IF NOT EXISTS idx_credentials_tenant_id ON public.credentials(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credentials_service_name ON public.credentials(service_name);
+CREATE INDEX IF NOT EXISTS idx_credentials_expires_at ON public.credentials(expires_at);
+CREATE INDEX IF NOT EXISTS idx_credentials_created_at ON public.credentials(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_credential_audit_log_tenant_id ON public.credential_audit_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credential_audit_log_credential_id ON public.credential_audit_log(credential_id);
+CREATE INDEX IF NOT EXISTS idx_credential_audit_log_action ON public.credential_audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_credential_audit_log_timestamp ON public.credential_audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_credential_audit_log_service_name ON public.credential_audit_log(service_name);
+
+CREATE INDEX IF NOT EXISTS idx_credential_rotation_schedule_tenant_id ON public.credential_rotation_schedule(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_credential_rotation_schedule_next_rotation ON public.credential_rotation_schedule(next_rotation_date);
+CREATE INDEX IF NOT EXISTS idx_credential_rotation_schedule_status ON public.credential_rotation_schedule(rotation_status);
+
+CREATE INDEX IF NOT EXISTS idx_service_account_configurations_tenant_id ON public.service_account_configurations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_service_account_configurations_service_name ON public.service_account_configurations(service_name);
+CREATE INDEX IF NOT EXISTS idx_service_account_configurations_validation_status ON public.service_account_configurations(validation_status);
+
+CREATE INDEX IF NOT EXISTS idx_external_service_endpoints_tenant_id ON public.external_service_endpoints(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_external_service_endpoints_service_name ON public.external_service_endpoints(service_name);
+CREATE INDEX IF NOT EXISTS idx_external_service_endpoints_active ON public.external_service_endpoints(is_active);
+
+-- Enhanced notification indexes
+CREATE INDEX IF NOT EXISTS idx_notification_templates_tenant_id ON public.notification_templates(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notification_templates_type ON public.notification_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_notification_templates_active ON public.notification_templates(is_active);
+
+CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON public.user_notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_tenant_id ON public.user_notification_preferences(tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_notification_routing_logs_tenant_id ON public.notification_routing_logs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_notification_routing_logs_notification_id ON public.notification_routing_logs(notification_id);
+CREATE INDEX IF NOT EXISTS idx_notification_routing_logs_timestamp ON public.notification_routing_logs(routing_timestamp);
+
+-- ============================================================================
+-- PERFORMANCE OPTIMIZATION INDEXES
+-- ============================================================================
+
+-- Notification system performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_queue_processing
+ON public.notifications (priority DESC, created_at ASC)
+WHERE status IN ('pending', 'processing');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_delivery_tracking
+ON public.notifications (tenant_id, channel, status, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_template_analytics
+ON public.notifications (template_name, created_at DESC)
+WHERE status = 'delivered';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_retry_processing
+ON public.notifications (retry_count, next_retry_at)
+WHERE status = 'failed' AND retry_count < 3;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_failed_attention
+ON public.notifications (tenant_id, created_at DESC)
+WHERE status = 'failed' AND retry_count >= 3;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_performance_metrics
+ON public.notifications (channel, template_name, created_at DESC, delivery_duration_ms)
+WHERE status = 'delivered';
+
+-- External data integration performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screenings_lookup
+ON public.entity_screenings (entity_name, entity_type, tenant_id, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screenings_risk_level
+ON public.entity_screenings (risk_level, tenant_id, created_at DESC)
+WHERE risk_level IN ('HIGH', 'CRITICAL');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_requests_performance
+ON public.external_data_requests (provider, operation, created_at DESC, response_time_ms);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_requests_errors
+ON public.external_data_requests (provider, status, created_at DESC)
+WHERE status = 'error';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_cache_freshness
+ON public.external_data_cache (provider, data_type, last_updated DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_cache_analytics
+ON public.external_data_cache (provider, cache_key_hash, hit_count, miss_count);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screening_history
+ON public.entity_screenings (entity_id, tenant_id, created_at DESC);
+
+-- GRC integration performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_sync_operations_tracking
+ON public.grc_sync_operations (system_type, operation_type, status, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_records_sync
+ON public.grc_records (system_type, external_id, last_sync_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_records_conflicts
+ON public.grc_records (tenant_id, conflict_status, last_modified DESC)
+WHERE conflict_status IS NOT NULL;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_audit_trail
+ON public.grc_audit_log (record_id, action, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_sync_performance
+ON public.grc_sync_operations (system_type, operation_type, duration_ms, created_at DESC);
+
+-- Tenant and user management performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tenant_data_access
+ON public.tenant_users (tenant_id, user_id, role, is_active)
+WHERE is_active = true;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_authentication
+ON public.users (email, is_active, last_login DESC)
+WHERE is_active = true;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tenant_configurations
+ON public.tenant_configurations (tenant_id, config_key, is_active)
+WHERE is_active = true;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_active
+ON public.user_sessions (user_id, expires_at DESC)
+WHERE is_active = true;
+
+-- Audit and compliance performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_tenant_date
+ON public.audit_logs (tenant_id, timestamp DESC, action);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_compliance_violations_tracking
+ON public.compliance_violations (tenant_id, severity, status, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_risk_assessments_queries
+ON public.risk_assessments (tenant_id, risk_level, assessment_date DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_regulatory_reports
+ON public.regulatory_reports (tenant_id, report_type, reporting_period, created_at DESC);
+
+-- Feature flags and configuration performance indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_feature_flag_evaluations
+ON public.feature_flag_evaluations (flag_name, tenant_id, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_feature_flags_active
+ON public.feature_flags (name, status, tenant_id)
+WHERE status = 'active';
+
+-- Performance monitoring indexes
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_api_metrics_performance
+ON public.api_request_metrics (endpoint, method, tenant_id, timestamp DESC, response_time_ms);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_system_metrics_timeseries
+ON public.system_metrics (metric_name, timestamp DESC, value);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_error_logs_analysis
+ON public.error_logs (service_name, error_type, tenant_id, created_at DESC);
+
+-- Composite indexes for complex queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_dashboard
+ON public.notifications (tenant_id, status, priority, created_at DESC, channel);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screening_dashboard
+ON public.entity_screenings (tenant_id, risk_level, screening_type, created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_dashboard
+ON public.grc_records (tenant_id, record_type, status, last_modified DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_compliance_reporting
+ON public.compliance_violations (tenant_id, violation_type, severity, created_at DESC, status);
+
+-- Partial indexes for specific use cases
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_pending_only
+ON public.notifications (tenant_id, priority DESC, created_at ASC)
+WHERE status = 'pending';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screenings_high_risk_only
+ON public.entity_screenings (tenant_id, entity_name, created_at DESC)
+WHERE risk_level IN ('HIGH', 'CRITICAL');
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_failed_only
+ON public.external_data_requests (provider, created_at DESC, error_message)
+WHERE status = 'error';
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_sync_active_only
+ON public.grc_sync_operations (system_type, created_at DESC)
+WHERE status IN ('running', 'pending');
+
+-- Expression indexes for computed values
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screenings_name_lower
+ON public.entity_screenings (tenant_id, LOWER(entity_name), created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_success_rate
+ON public.notifications (tenant_id, channel,
+    CASE WHEN status = 'delivered' THEN 1 ELSE 0 END,
+    created_at DESC);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_records_age
+ON public.grc_records (tenant_id,
+    EXTRACT(EPOCH FROM (NOW() - created_at))/86400)
+WHERE EXTRACT(EPOCH FROM (NOW() - created_at))/86400 > 365;
+
+-- Unique indexes for data integrity
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_external_data_cache_unique
+ON public.external_data_cache (provider, cache_key_hash, tenant_id);
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_records_external_id_unique
+ON public.grc_records (system_type, external_id, tenant_id);
+
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS idx_user_sessions_token_unique
+ON public.user_sessions (session_token)
+WHERE is_active = true;
+
+-- Covering indexes for read-heavy queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_list_covering
+ON public.notifications (tenant_id, created_at DESC)
+INCLUDE (id, template_name, channel, status, priority, recipient_email);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_entity_screenings_list_covering
+ON public.entity_screenings (tenant_id, created_at DESC)
+INCLUDE (id, entity_name, entity_type, risk_level, screening_type, overall_score);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_grc_records_list_covering
+ON public.grc_records (tenant_id, last_modified DESC)
+INCLUDE (id, record_type, title, status, risk_level, owner);
+
 -- ============================================================================
 -- ROW LEVEL SECURITY POLICIES
 -- ============================================================================
@@ -974,28 +1195,229 @@ CREATE TRIGGER update_compliance_tasks_updated_at BEFORE UPDATE ON public.compli
 CREATE TRIGGER update_regulatory_impact_assessments_updated_at BEFORE UPDATE ON public.regulatory_impact_assessments
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Triggers for credential management tables
+CREATE TRIGGER update_credentials_updated_at BEFORE UPDATE ON public.credentials
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_credential_rotation_schedule_updated_at BEFORE UPDATE ON public.credential_rotation_schedule
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_service_account_configurations_updated_at BEFORE UPDATE ON public.service_account_configurations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_external_service_endpoints_updated_at BEFORE UPDATE ON public.external_service_endpoints
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Triggers for enhanced notification tables
+CREATE TRIGGER update_notification_templates_updated_at BEFORE UPDATE ON public.notification_templates
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_notification_preferences_updated_at BEFORE UPDATE ON public.user_notification_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_tenant_notification_preferences_updated_at BEFORE UPDATE ON public.tenant_notification_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- CREDENTIAL MANAGEMENT TABLES
+-- ============================================================================
+
+-- External service credentials table for encrypted credential storage
+CREATE TABLE IF NOT EXISTS public.credentials (
+    id text PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    service_name text NOT NULL,
+    credential_type text NOT NULL,
+    encrypted_data jsonb NOT NULL,
+    expires_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    CONSTRAINT unique_tenant_service_type UNIQUE (tenant_id, service_name, credential_type)
+);
+
+-- Credential audit log table
+CREATE TABLE IF NOT EXISTS public.credential_audit_log (
+    id text PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    credential_id text NOT NULL,
+    action text NOT NULL, -- 'store', 'retrieve', 'rotate', 'delete'
+    service_name text,
+    credential_type text,
+    timestamp timestamp with time zone DEFAULT now() NOT NULL,
+    ip_address inet,
+    user_agent text,
+    additional_metadata jsonb DEFAULT '{}'
+);
+
+-- Credential rotation schedule table
+CREATE TABLE IF NOT EXISTS public.credential_rotation_schedule (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    credential_id text NOT NULL,
+    rotation_frequency_days integer NOT NULL DEFAULT 90,
+    next_rotation_date timestamp with time zone NOT NULL,
+    auto_rotate boolean DEFAULT false,
+    notification_days_before integer DEFAULT 7,
+    last_rotation_date timestamp with time zone,
+    rotation_status text DEFAULT 'scheduled', -- 'scheduled', 'in_progress', 'completed', 'failed'
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Service account configurations table
+CREATE TABLE IF NOT EXISTS public.service_account_configurations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    service_name text NOT NULL,
+    account_type text NOT NULL, -- 'api_key', 'oauth', 'basic_auth', 'certificate'
+    configuration jsonb NOT NULL DEFAULT '{}',
+    validation_endpoint text,
+    validation_status text DEFAULT 'pending', -- 'pending', 'valid', 'invalid', 'expired'
+    last_validated timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    CONSTRAINT unique_tenant_service_account UNIQUE (tenant_id, service_name, account_type)
+);
+
+-- External service endpoints table
+CREATE TABLE IF NOT EXISTS public.external_service_endpoints (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    service_name text NOT NULL,
+    endpoint_type text NOT NULL, -- 'api', 'webhook', 'sftp', 'database'
+    base_url text NOT NULL,
+    authentication_method text NOT NULL, -- 'api_key', 'oauth', 'basic_auth', 'certificate'
+    rate_limit_config jsonb DEFAULT '{}',
+    timeout_seconds integer DEFAULT 30,
+    retry_config jsonb DEFAULT '{}',
+    health_check_endpoint text,
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- ENHANCED NOTIFICATION TABLES
+-- ============================================================================
+
+-- Notification templates table
+CREATE TABLE IF NOT EXISTS public.notification_templates (
+    id text PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    template_name text NOT NULL,
+    template_type text NOT NULL, -- 'email', 'sms', 'slack', 'webhook'
+    language text NOT NULL DEFAULT 'en',
+    subject_template text,
+    text_template text,
+    html_template text,
+    sms_template text,
+    metadata jsonb DEFAULT '{}',
+    is_active boolean DEFAULT true,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    CONSTRAINT unique_tenant_template UNIQUE (tenant_id, template_name, template_type, language)
+);
+
+-- User notification preferences table
+CREATE TABLE IF NOT EXISTS public.user_notification_preferences (
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    preferences jsonb NOT NULL DEFAULT '{}',
+    quiet_hours jsonb,
+    escalation_rules jsonb DEFAULT '[]',
+    language text DEFAULT 'en',
+    timezone text DEFAULT 'UTC',
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+
+    PRIMARY KEY (user_id, tenant_id)
+);
+
+-- Tenant notification preferences table
+CREATE TABLE IF NOT EXISTS public.tenant_notification_preferences (
+    tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
+    default_preferences jsonb NOT NULL DEFAULT '{}',
+    routing_rules jsonb DEFAULT '[]',
+    escalation_matrix jsonb DEFAULT '{}',
+    compliance_settings jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Notification routing logs table
+CREATE TABLE IF NOT EXISTS public.notification_routing_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    notification_id uuid,
+    routing_decision jsonb NOT NULL,
+    applied_rules jsonb DEFAULT '[]',
+    routing_timestamp timestamp with time zone DEFAULT now() NOT NULL,
+    processing_duration_ms integer,
+    success boolean DEFAULT true,
+    error_message text
+);
+
 -- ============================================================================
 -- SCHEMA VALIDATION AND CONSTRAINTS
 -- ============================================================================
 
 -- Add check constraints for data integrity
-ALTER TABLE public.users ADD CONSTRAINT chk_user_role 
+ALTER TABLE public.users ADD CONSTRAINT chk_user_role
     CHECK (role IN ('admin', 'compliance_officer', 'analyst', 'auditor', 'manager', 'viewer'));
 
-ALTER TABLE public.customers ADD CONSTRAINT chk_customer_risk_rating 
+ALTER TABLE public.customers ADD CONSTRAINT chk_customer_risk_rating
     CHECK (risk_rating IN ('low', 'medium', 'high'));
 
-ALTER TABLE public.customers ADD CONSTRAINT chk_kyc_status 
+ALTER TABLE public.customers ADD CONSTRAINT chk_kyc_status
     CHECK (kyc_status IN ('verified', 'rejected', 'pending', 'expired'));
 
-ALTER TABLE public.transactions ADD CONSTRAINT chk_aml_status 
+ALTER TABLE public.transactions ADD CONSTRAINT chk_aml_status
     CHECK (aml_status IN ('clear', 'flagged', 'investigated', 'reported'));
 
-ALTER TABLE public.compliance_tasks ADD CONSTRAINT chk_task_priority 
+ALTER TABLE public.compliance_tasks ADD CONSTRAINT chk_task_priority
     CHECK (priority IN ('critical', 'high', 'medium', 'low'));
 
-ALTER TABLE public.compliance_tasks ADD CONSTRAINT chk_task_status 
+ALTER TABLE public.compliance_tasks ADD CONSTRAINT chk_task_status
     CHECK (status IN ('assigned', 'in_progress', 'completed', 'overdue', 'cancelled'));
+
+-- Credential management constraints
+ALTER TABLE public.credentials ADD CONSTRAINT chk_credential_type
+    CHECK (credential_type IN ('api_key', 'oauth_token', 'basic_auth', 'certificate', 'ssh_key', 'database_password'));
+
+ALTER TABLE public.credential_audit_log ADD CONSTRAINT chk_credential_audit_action
+    CHECK (action IN ('store', 'retrieve', 'rotate', 'delete', 'validate', 'expire'));
+
+ALTER TABLE public.credential_rotation_schedule ADD CONSTRAINT chk_rotation_frequency
+    CHECK (rotation_frequency_days > 0 AND rotation_frequency_days <= 365);
+
+ALTER TABLE public.credential_rotation_schedule ADD CONSTRAINT chk_rotation_status
+    CHECK (rotation_status IN ('scheduled', 'in_progress', 'completed', 'failed', 'skipped'));
+
+ALTER TABLE public.service_account_configurations ADD CONSTRAINT chk_account_type
+    CHECK (account_type IN ('api_key', 'oauth', 'basic_auth', 'certificate', 'jwt', 'saml'));
+
+ALTER TABLE public.service_account_configurations ADD CONSTRAINT chk_validation_status
+    CHECK (validation_status IN ('pending', 'valid', 'invalid', 'expired', 'error'));
+
+ALTER TABLE public.external_service_endpoints ADD CONSTRAINT chk_endpoint_type
+    CHECK (endpoint_type IN ('api', 'webhook', 'sftp', 'database', 'message_queue'));
+
+ALTER TABLE public.external_service_endpoints ADD CONSTRAINT chk_authentication_method
+    CHECK (authentication_method IN ('api_key', 'oauth', 'basic_auth', 'certificate', 'none'));
+
+-- Enhanced notification constraints
+ALTER TABLE public.notification_templates ADD CONSTRAINT chk_notification_template_type
+    CHECK (template_type IN ('email', 'sms', 'slack', 'webhook', 'push', 'in_app'));
+
+ALTER TABLE public.notification_templates ADD CONSTRAINT chk_notification_language
+    CHECK (language IN ('en', 'es', 'fr', 'de', 'it', 'pt', 'zh', 'ja', 'ko'));
+
+ALTER TABLE public.user_notification_preferences ADD CONSTRAINT chk_user_notification_language
+    CHECK (language IN ('en', 'es', 'fr', 'de', 'it', 'pt', 'zh', 'ja', 'ko'));
 
 -- ============================================================================
 -- SEED DATA FOR REGULATORY SOURCES
@@ -5701,6 +6123,373 @@ COMMENT ON TABLE public.training_discussion_votes IS 'Voting system for training
 COMMENT ON TABLE public.training_analytics IS 'Analytics events for training portal usage tracking';
 COMMENT ON TABLE public.training_reports IS 'Generated training reports and analytics summaries';
 
+-- Credential management table comments
+COMMENT ON TABLE public.credentials IS 'Encrypted storage for external service credentials with rotation support';
+COMMENT ON TABLE public.credential_audit_log IS 'Comprehensive audit log for all credential operations and access';
+COMMENT ON TABLE public.credential_rotation_schedule IS 'Automated credential rotation scheduling and tracking';
+COMMENT ON TABLE public.service_account_configurations IS 'Service account setup and validation status for external integrations';
+COMMENT ON TABLE public.external_service_endpoints IS 'External service API endpoint configurations with health monitoring';
+
+-- Enhanced notification table comments
+COMMENT ON TABLE public.notification_templates IS 'Customizable notification templates with multi-language support';
+COMMENT ON TABLE public.user_notification_preferences IS 'User-specific notification preferences and routing rules';
+COMMENT ON TABLE public.tenant_notification_preferences IS 'Tenant-level notification configuration and escalation matrix';
+COMMENT ON TABLE public.notification_routing_logs IS 'Audit log of notification routing decisions and rule applications';
+
 -- ============================================================================
--- END OF SCHEMA
+-- CENTRALIZED LOGGING SYSTEM TABLES
+-- ============================================================================
+
+-- Centralized log entries table
+CREATE TABLE IF NOT EXISTS public.centralized_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    timestamp timestamp with time zone DEFAULT now() NOT NULL,
+    level text NOT NULL CHECK (level IN ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')),
+    category text NOT NULL,
+    message text NOT NULL,
+    component text NOT NULL,
+    service_name text,
+    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    session_id text,
+    request_id text,
+    correlation_id text,
+    metadata jsonb DEFAULT '{}',
+    structured_data jsonb DEFAULT '{}',
+    stack_trace text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Log aggregation rules table
+CREATE TABLE IF NOT EXISTS public.log_aggregation_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    rule_name text NOT NULL,
+    pattern text NOT NULL,
+    aggregation_window_minutes integer NOT NULL DEFAULT 5,
+    threshold_count integer NOT NULL DEFAULT 10,
+    severity_level text NOT NULL,
+    alert_enabled boolean DEFAULT true NOT NULL,
+    notification_channels jsonb DEFAULT '[]',
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Log retention policies table
+CREATE TABLE IF NOT EXISTS public.log_retention_policies (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    policy_name text NOT NULL,
+    log_category text NOT NULL,
+    retention_days integer NOT NULL,
+    archive_enabled boolean DEFAULT false NOT NULL,
+    archive_storage_path text,
+    compression_enabled boolean DEFAULT true NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- APPLICATION PERFORMANCE MONITORING (APM) TABLES
+-- ============================================================================
+
+-- APM transactions table
+CREATE TABLE IF NOT EXISTS public.apm_transactions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    transaction_id text NOT NULL,
+    transaction_name text NOT NULL,
+    transaction_type text NOT NULL,
+    service_name text NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone,
+    duration_ms integer,
+    status_code integer,
+    success boolean,
+    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    user_agent text,
+    ip_address inet,
+    url text,
+    method text,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- APM spans table (for distributed tracing)
+CREATE TABLE IF NOT EXISTS public.apm_spans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    transaction_id text NOT NULL,
+    span_id text NOT NULL,
+    parent_span_id text,
+    operation_name text NOT NULL,
+    service_name text NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone,
+    duration_ms integer,
+    tags jsonb DEFAULT '{}',
+    logs jsonb DEFAULT '[]',
+    status text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- APM errors table
+CREATE TABLE IF NOT EXISTS public.apm_errors (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    error_id text NOT NULL,
+    transaction_id text,
+    service_name text NOT NULL,
+    error_type text NOT NULL,
+    error_message text NOT NULL,
+    stack_trace text,
+    occurred_at timestamp with time zone NOT NULL,
+    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    url text,
+    user_agent text,
+    ip_address inet,
+    context jsonb DEFAULT '{}',
+    fingerprint text,
+    first_seen timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen timestamp with time zone DEFAULT now() NOT NULL,
+    occurrence_count integer DEFAULT 1 NOT NULL,
+    resolved boolean DEFAULT false NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- APM metrics table
+CREATE TABLE IF NOT EXISTS public.apm_metrics (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    metric_name text NOT NULL,
+    metric_type text NOT NULL CHECK (metric_type IN ('counter', 'gauge', 'histogram', 'timer')),
+    service_name text NOT NULL,
+    value numeric NOT NULL,
+    tags jsonb DEFAULT '{}',
+    timestamp timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- APM performance baselines table
+CREATE TABLE IF NOT EXISTS public.apm_performance_baselines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    service_name text NOT NULL,
+    operation_name text NOT NULL,
+    metric_type text NOT NULL,
+    baseline_value numeric NOT NULL,
+    threshold_warning numeric NOT NULL,
+    threshold_critical numeric NOT NULL,
+    calculation_period_days integer DEFAULT 7 NOT NULL,
+    last_calculated timestamp with time zone DEFAULT now() NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- DISASTER RECOVERY SYSTEM TABLES
+-- ============================================================================
+
+-- DR objectives table
+CREATE TABLE IF NOT EXISTS public.dr_objectives (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    component text NOT NULL,
+    rto_minutes integer NOT NULL,
+    rpo_minutes integer NOT NULL,
+    priority integer NOT NULL CHECK (priority >= 1 AND priority <= 5),
+    automated_recovery boolean DEFAULT false NOT NULL,
+    manual_steps_required boolean DEFAULT true NOT NULL,
+    validation_checks jsonb DEFAULT '[]',
+    dependencies jsonb DEFAULT '[]',
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- DR test results table
+CREATE TABLE IF NOT EXISTS public.dr_test_results (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    test_id text NOT NULL,
+    test_type text NOT NULL,
+    component text NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone,
+    duration_minutes numeric,
+    status text NOT NULL CHECK (status IN ('running', 'passed', 'failed', 'cancelled')),
+    rto_achieved boolean,
+    rpo_achieved boolean,
+    validation_results jsonb DEFAULT '{}',
+    error_messages jsonb DEFAULT '[]',
+    recommendations jsonb DEFAULT '[]',
+    metadata jsonb DEFAULT '{}',
+    executed_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- DR events table
+CREATE TABLE IF NOT EXISTS public.dr_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    event_id text NOT NULL,
+    event_type text NOT NULL,
+    severity text NOT NULL CHECK (severity IN ('info', 'warning', 'critical', 'emergency')),
+    component text NOT NULL,
+    description text NOT NULL,
+    status text NOT NULL,
+    recovery_actions jsonb DEFAULT '[]',
+    occurred_at timestamp with time zone NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- DR backup metadata table
+CREATE TABLE IF NOT EXISTS public.dr_backup_metadata (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    backup_id text NOT NULL,
+    component text NOT NULL,
+    backup_type text NOT NULL,
+    file_path text NOT NULL,
+    file_size bigint,
+    checksum text,
+    encryption_enabled boolean DEFAULT false NOT NULL,
+    compression_enabled boolean DEFAULT true NOT NULL,
+    backup_started timestamp with time zone NOT NULL,
+    backup_completed timestamp with time zone,
+    backup_status text NOT NULL CHECK (backup_status IN ('running', 'completed', 'failed')),
+    retention_until timestamp with time zone,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- CONFIGURATION MANAGEMENT TABLES
+-- ============================================================================
+
+-- Configuration versions table
+CREATE TABLE IF NOT EXISTS public.configuration_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    version_id text NOT NULL,
+    component text NOT NULL,
+    configuration_data jsonb NOT NULL,
+    checksum text NOT NULL,
+    created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    change_description text,
+    is_active boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Configuration drift detection table
+CREATE TABLE IF NOT EXISTS public.configuration_drift (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    component text NOT NULL,
+    field_path text NOT NULL,
+    expected_value text NOT NULL,
+    actual_value text NOT NULL,
+    drift_severity text NOT NULL CHECK (drift_severity IN ('ok', 'warning', 'error')),
+    detected_at timestamp with time zone NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    auto_remediated boolean DEFAULT false NOT NULL,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- Configuration compliance scans table
+CREATE TABLE IF NOT EXISTS public.configuration_compliance_scans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+    scan_id text NOT NULL,
+    framework text NOT NULL,
+    component text NOT NULL,
+    rule_id text NOT NULL,
+    rule_description text NOT NULL,
+    compliance_status text NOT NULL CHECK (compliance_status IN ('compliant', 'non_compliant', 'not_applicable')),
+    severity text NOT NULL,
+    finding_details jsonb DEFAULT '{}',
+    remediation_steps jsonb DEFAULT '[]',
+    scanned_at timestamp with time zone NOT NULL,
+    remediated_at timestamp with time zone,
+    remediated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+-- ============================================================================
+-- INDEXES FOR PERFORMANCE OPTIMIZATION
+-- ============================================================================
+
+-- Centralized logging indexes
+CREATE INDEX IF NOT EXISTS idx_centralized_logs_tenant_timestamp ON public.centralized_logs(tenant_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_centralized_logs_level_category ON public.centralized_logs(level, category);
+CREATE INDEX IF NOT EXISTS idx_centralized_logs_component_service ON public.centralized_logs(component, service_name);
+CREATE INDEX IF NOT EXISTS idx_centralized_logs_correlation_id ON public.centralized_logs(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_centralized_logs_request_id ON public.centralized_logs(request_id);
+
+-- APM indexes
+CREATE INDEX IF NOT EXISTS idx_apm_transactions_tenant_start_time ON public.apm_transactions(tenant_id, start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_apm_transactions_service_name ON public.apm_transactions(service_name);
+CREATE INDEX IF NOT EXISTS idx_apm_transactions_transaction_id ON public.apm_transactions(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_apm_spans_transaction_id ON public.apm_spans(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_apm_spans_service_operation ON public.apm_spans(service_name, operation_name);
+CREATE INDEX IF NOT EXISTS idx_apm_errors_tenant_occurred ON public.apm_errors(tenant_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_apm_errors_service_type ON public.apm_errors(service_name, error_type);
+CREATE INDEX IF NOT EXISTS idx_apm_errors_fingerprint ON public.apm_errors(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_apm_metrics_tenant_timestamp ON public.apm_metrics(tenant_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_apm_metrics_service_metric ON public.apm_metrics(service_name, metric_name);
+
+-- DR indexes
+CREATE INDEX IF NOT EXISTS idx_dr_test_results_tenant_start_time ON public.dr_test_results(tenant_id, start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_dr_test_results_component_status ON public.dr_test_results(component, status);
+CREATE INDEX IF NOT EXISTS idx_dr_events_tenant_occurred ON public.dr_events(tenant_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dr_events_component_severity ON public.dr_events(component, severity);
+CREATE INDEX IF NOT EXISTS idx_dr_backup_metadata_tenant_started ON public.dr_backup_metadata(tenant_id, backup_started DESC);
+CREATE INDEX IF NOT EXISTS idx_dr_backup_metadata_component_status ON public.dr_backup_metadata(component, backup_status);
+
+-- Configuration management indexes
+CREATE INDEX IF NOT EXISTS idx_config_versions_tenant_component ON public.configuration_versions(tenant_id, component);
+CREATE INDEX IF NOT EXISTS idx_config_versions_active ON public.configuration_versions(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_config_drift_tenant_detected ON public.configuration_drift(tenant_id, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_config_drift_component_severity ON public.configuration_drift(component, drift_severity);
+CREATE INDEX IF NOT EXISTS idx_config_compliance_tenant_scanned ON public.configuration_compliance_scans(tenant_id, scanned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_config_compliance_framework_status ON public.configuration_compliance_scans(framework, compliance_status);
+
+-- ============================================================================
+-- TABLE COMMENTS FOR ENHANCED FEATURES
+-- ============================================================================
+
+-- Centralized logging comments
+COMMENT ON TABLE public.centralized_logs IS 'Centralized log aggregation for all RegulensAI services and components';
+COMMENT ON TABLE public.log_aggregation_rules IS 'Rules for log aggregation, alerting, and pattern matching';
+COMMENT ON TABLE public.log_retention_policies IS 'Log retention and archival policies by category and tenant';
+
+-- APM comments
+COMMENT ON TABLE public.apm_transactions IS 'Application performance monitoring transaction tracking';
+COMMENT ON TABLE public.apm_spans IS 'Distributed tracing spans for detailed performance analysis';
+COMMENT ON TABLE public.apm_errors IS 'Error tracking and aggregation with fingerprinting';
+COMMENT ON TABLE public.apm_metrics IS 'Custom metrics collection for business and technical KPIs';
+COMMENT ON TABLE public.apm_performance_baselines IS 'Performance baselines and thresholds for regression detection';
+
+-- DR comments
+COMMENT ON TABLE public.dr_objectives IS 'Disaster recovery objectives (RTO/RPO) by component';
+COMMENT ON TABLE public.dr_test_results IS 'Disaster recovery test execution results and validation';
+COMMENT ON TABLE public.dr_events IS 'Disaster recovery events, incidents, and status tracking';
+COMMENT ON TABLE public.dr_backup_metadata IS 'Backup metadata and integrity tracking for DR';
+
+-- Configuration management comments
+COMMENT ON TABLE public.configuration_versions IS 'Configuration version control and change tracking';
+COMMENT ON TABLE public.configuration_drift IS 'Configuration drift detection and monitoring';
+COMMENT ON TABLE public.configuration_compliance_scans IS 'Configuration compliance scanning results';
+
+-- ============================================================================
+-- END OF ENHANCED SCHEMA
 -- ============================================================================

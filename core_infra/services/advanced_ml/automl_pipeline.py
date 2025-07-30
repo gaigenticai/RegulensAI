@@ -34,6 +34,7 @@ try:
     HAS_AUTOML_LIBRARIES = True
 except ImportError:
     HAS_AUTOML_LIBRARIES = False
+    raise ImportError("Required AutoML libraries are missing. Install them via requirements.txt.")
 
 # Separate optional imports to avoid XGBoost library loading issues
 HAS_XGBOOST = False
@@ -120,36 +121,6 @@ else:
     # If sklearn is not available, create all mocks
     HAS_XGBOOST = False
     HAS_LIGHTGBM = False
-
-    class MockXGB:
-        class XGBClassifier:
-            def __init__(self, *args, **kwargs):
-                self.classes_ = [0, 1]
-            def fit(self, X, y, **kwargs):
-                return self
-            def predict(self, X):
-                return np.random.randint(0, 2, len(X))
-            def predict_proba(self, X):
-                return np.random.random((len(X), 2))
-
-        class XGBRegressor:
-            def __init__(self, *args, **kwargs):
-                pass
-            def fit(self, X, y, **kwargs):
-                return self
-            def predict(self, X):
-                return np.random.random(len(X))
-    
-    class MockLGB:
-        class LGBMClassifier:
-            def __init__(self, *args, **kwargs):
-                pass
-        class LGBMRegressor:
-            def __init__(self, *args, **kwargs):
-                pass
-    
-    xgb = MockXGB()
-    lgb = MockLGB()
 
 from core_infra.config import get_settings
 
@@ -244,7 +215,7 @@ class AutoMLPipeline:
     async def initialize(self):
         """Initialize the AutoML pipeline"""
         if not HAS_AUTOML_LIBRARIES:
-            logger.warning("AutoML libraries not installed - running in simulation mode")
+            raise ImportError("AutoML libraries are required for production use. Please install them.");
         else:
             logger.info("AutoML Pipeline initialized successfully")
     
@@ -418,10 +389,6 @@ class AutoMLPipeline:
                 metric=automl_config.get("metric", "accuracy" if model_type == "classification" else "r2"),
                 **automl_config
             )
-            
-            if not HAS_AUTOML_LIBRARIES:
-                logger.info("Simulating AutoML pipeline")
-                return await self._simulate_automl(data, target_column, config)
             
             logger.info(f"Starting AutoML pipeline for {config.task_type}")
             
@@ -800,55 +767,6 @@ class AutoMLPipeline:
             logger.warning(f"Could not extract feature importance: {str(e)}")
             return None
     
-    async def _simulate_automl(
-        self,
-        data: pd.DataFrame,
-        target_column: str,
-        config: AutoMLConfig
-    ) -> Dict[str, Any]:
-        """Simulate AutoML when libraries are not available"""
-        
-        logger.info("Simulating AutoML pipeline execution")
-        
-        # Generate realistic results
-        model_names = ["random_forest", "gradient_boosting", "logistic_regression", "xgboost"]
-        model_results = []
-        
-        for i, name in enumerate(model_names):
-            # Simulate decreasing performance
-            base_score = 0.95 - i * 0.05
-            noise = np.random.normal(0, 0.02)
-            cv_mean = max(0.5, base_score + noise)
-            
-            model_results.append({
-                "model_name": name,
-                "cv_mean": cv_mean,
-                "cv_std": 0.02,
-                "test_score": cv_mean - 0.01,
-                "training_time": np.random.uniform(10, 60)
-            })
-        
-        best_model = max(model_results, key=lambda x: x["cv_mean"])
-        
-        return {
-            "best_model": None,  # Mock model
-            "best_model_name": best_model["model_name"],
-            "best_score": best_model["cv_mean"],
-            "best_metrics": {
-                "cv_mean": best_model["cv_mean"],
-                "cv_std": best_model["cv_std"],
-                "test_score": best_model["test_score"]
-            },
-            "best_parameters": {"n_estimators": 100, "max_depth": 10},
-            "model_results": model_results,
-            "feature_engineering_results": {
-                "selected_features_count": min(20, len(data.columns) - 1),
-                "original_features": len(data.columns) - 1
-            },
-            "leaderboard": sorted(model_results, key=lambda x: x["cv_mean"], reverse=True),
-            "total_time": 120.0
-        }
-
     def _get_production_model(self, model_name: str, task_type: str) -> Any:
         """Get production-ready model instance with optimized configurations."""
 

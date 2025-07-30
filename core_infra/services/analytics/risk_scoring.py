@@ -248,7 +248,7 @@ class RiskScoringService:
                 'risk_level': risk_level,
                 'risk_factors': json.dumps(risk_factors),
                 'anomaly_indicators': json.dumps(anomaly_indicators),
-                'pattern_matches': json.dumps([]),  # TODO: Implement pattern matching
+                'pattern_matches': json.dumps(self._match_patterns(features)),  # Implement _match_patterns
                 'false_positive_probability': float(self._calculate_false_positive_probability(overall_risk_score)),
                 'investigation_priority': int(self._calculate_investigation_priority(overall_risk_score, risk_factors)),
                 'auto_decision': auto_decision,
@@ -731,3 +731,19 @@ class RiskScoringService:
             'targets': np.random.randint(0, 2, n_samples),
             'feature_names': [f'feature_{i}' for i in range(n_features)]
         } 
+
+    def _match_patterns(self, features: Dict) -> List[str]:
+        """
+        Implement pattern matching logic to identify specific patterns in features.
+        This is a placeholder and would require actual pattern definition and logic.
+        """
+        patterns = []
+        # Example: If a customer has a high transaction volume and a high risk rating,
+        # it might indicate a high-risk customer.
+        if features.get('transaction_volume_30d', 0) > 100000 and features.get('risk_rating_numeric', 50) > 70:
+            patterns.append('high_transaction_volume_with_high_risk_rating')
+        # If a customer has a large transaction amount and a high risk rating,
+        # it might indicate a high-risk customer.
+        if features.get('amount', 0) > 50000 and features.get('risk_rating_numeric', 50) > 70:
+            patterns.append('large_amount_with_high_risk_rating')
+        return patterns

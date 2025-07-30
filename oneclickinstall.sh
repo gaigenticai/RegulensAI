@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # ============================================================================
-# REGULENS AI - ONE-CLICK INSTALLER
-# Enterprise Financial Compliance Platform
+# REGULENS AI - ONE-CLICK INSTALLER (ENHANCED)
+# Enterprise Financial Compliance Platform with Complete Operational Stack
+# Includes: Centralized Logging, APM, Disaster Recovery, Enhanced Documentation
 # ============================================================================
 
 set -euo pipefail
@@ -37,6 +38,9 @@ SERVICE_PORTS=(
     "jaeger:16686"
     "prometheus:9090"
     "redis:6379"
+    "elasticsearch:9200"
+    "kibana:5601"
+    "logstash:5044"
 )
 
 # Store assigned ports as variables
@@ -48,6 +52,9 @@ ASSIGNED_PORT_GRAFANA=""
 ASSIGNED_PORT_JAEGER=""
 ASSIGNED_PORT_PROMETHEUS=""
 ASSIGNED_PORT_REDIS=""
+ASSIGNED_PORT_ELASTICSEARCH=""
+ASSIGNED_PORT_KIBANA=""
+ASSIGNED_PORT_LOGSTASH=""
 
 # ============================================================================
 # LOGGING FUNCTIONS
@@ -415,88 +422,136 @@ EOF
 # ============================================================================
 
 setup_database() {
-    print_header "SETTING UP SUPABASE DATABASE CONNECTION"
-    
-    print_step "Validating Supabase configuration..."
-    
-    # Check if Supabase credentials are configured
-    if grep -q "your-supabase" "$ENV_FILE"; then
-        print_error "Supabase credentials are not configured!"
+    print_header "SETTING UP DATABASE WITH ENHANCED SCHEMA"
+
+    print_step "Validating database configuration..."
+
+    # Check if database credentials are configured
+    if grep -q "your-supabase" "$ENV_FILE" || grep -q "your-database" "$ENV_FILE"; then
+        print_error "Database credentials are not configured!"
         echo
-        echo "Please update your .env file with the following Supabase credentials:"
-        echo "  SUPABASE_URL=your-supabase-project-url"
-        echo "  SUPABASE_ANON_KEY=your-supabase-anon-key"
-        echo "  SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key"
-        echo "  DATABASE_URL=postgresql://postgres:your-password@db.your-project.supabase.co:5432/postgres"
+        echo "Please update your .env file with your database credentials:"
+        echo "  For Supabase:"
+        echo "    SUPABASE_URL=your-supabase-project-url"
+        echo "    SUPABASE_ANON_KEY=your-supabase-anon-key"
+        echo "    SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key"
+        echo "    DATABASE_URL=postgresql://postgres:your-password@db.your-project.supabase.co:5432/postgres"
         echo
-        read -p "Press Enter when you have updated the Supabase credentials..."
+        echo "  For other PostgreSQL databases:"
+        echo "    DATABASE_URL=postgresql://username:password@host:port/database"
+        echo
+        read -p "Press Enter when you have updated the database credentials..."
     fi
-    
-    print_step "Testing database connection..."
-    
-    # Test if we can connect to Supabase (this will be implemented in the application)
-    print_success "Supabase configuration validated"
-    print_step "Database schema will be applied automatically by the application"
+
+    print_step "Checking consolidated database schema..."
+
+    # Check if consolidated schema file exists
+    if [ -f "$SCRIPT_DIR/core_infra/database/schema.sql" ]; then
+        print_success "Found consolidated database schema file"
+        print_info "Schema includes:"
+        print_info "  • Core RegulensAI tables (users, regulations, compliance, etc.)"
+        print_info "  • Centralized logging tables (logs, aggregation rules, retention)"
+        print_info "  • APM monitoring tables (transactions, spans, errors, metrics)"
+        print_info "  • Disaster recovery tables (objectives, tests, events, backups)"
+        print_info "  • Configuration management tables (versions, drift, compliance)"
+        print_info "  • Optimized indexes and constraints for performance"
+    else
+        print_warning "Consolidated schema file not found at core_infra/database/schema.sql"
+    fi
+
+    print_step "Database schema will be applied during service startup..."
+    print_info "The consolidated startup script will handle:"
+    print_info "  • Database connectivity verification"
+    print_info "  • Schema migrations and updates"
+    print_info "  • Schema validation and integrity checks"
+
+    print_success "Database setup configuration completed"
 }
 
 # ============================================================================
 # SERVICE STARTUP
 # ============================================================================
 
-start_core_services() {
-    print_header "STARTING CORE SERVICES"
-    
+start_all_services() {
+    print_header "STARTING COMPLETE REGULENSAI ECOSYSTEM"
+
+    print_step "Preparing consolidated startup script..."
+
+    # Make sure the startup script is executable
+    if [ -f "$SCRIPT_DIR/scripts/start_all_services.sh" ]; then
+        chmod +x "$SCRIPT_DIR/scripts/start_all_services.sh"
+
+        print_step "Starting all RegulensAI services using consolidated startup script..."
+        print_info "This includes:"
+        print_info "  • Infrastructure services (Redis, Qdrant)"
+        print_info "  • ELK Stack (Elasticsearch, Logstash, Kibana, Filebeat)"
+        print_info "  • Monitoring services (Jaeger, Prometheus, Grafana)"
+        print_info "  • Application services (API, Compliance Engine, etc.)"
+        print_info "  • UI services (Web UI, Documentation Portal)"
+        print_info "  • Background services (DR, Logging, Backup managers)"
+        echo
+
+        # Run the consolidated startup script
+        if "$SCRIPT_DIR/scripts/start_all_services.sh"; then
+            print_success "All RegulensAI services started successfully using consolidated script"
+        else
+            print_warning "Consolidated startup script encountered issues, falling back to basic startup..."
+            start_basic_services
+        fi
+    else
+        print_warning "Consolidated startup script not found, using basic startup..."
+        start_basic_services
+    fi
+}
+
+start_basic_services() {
+    print_header "STARTING BASIC SERVICES (FALLBACK)"
+
     print_step "Starting Redis..."
     docker-compose up -d redis
     wait_for_service "Redis" 6379
-    
+
     print_step "Starting Qdrant vector database..."
     docker-compose up -d qdrant
     wait_for_service "Qdrant" 6333
-    
+
     print_step "Starting monitoring services..."
     docker-compose up -d jaeger prometheus grafana
     wait_for_service "Jaeger" 16686
     wait_for_service "Prometheus" 9090
     wait_for_service "Grafana" 3001
-    
-    print_success "Core services started successfully"
-}
 
-start_application_services() {
-    print_header "STARTING APPLICATION SERVICES"
-    
     print_step "Building application images..."
     docker-compose build
-    
+
     print_step "Starting application services..."
     docker-compose up -d
-    
+
     # Wait for main API to be ready
     wait_for_service "Regulens AI API" 8000 60
-    
+
     print_step "Verifying service health..."
     local health_check_url="http://localhost:8000/v1/health"
     local max_attempts=10
     local attempt=1
-    
+
     while [ $attempt -le $max_attempts ]; do
         if curl -f -s "$health_check_url" > /dev/null 2>&1; then
             print_success "API health check passed"
             break
         fi
-        
+
         if [ $attempt -eq $max_attempts ]; then
             print_warning "API health check failed, but continuing..."
             break
         fi
-        
+
         echo -n "."
         sleep 3
         ((attempt++))
     done
-    
-    print_success "All application services started successfully"
+
+    print_success "Basic services started successfully"
 }
 
 # ============================================================================
@@ -636,23 +691,29 @@ show_installation_summary() {
         fi
     fi
     
-    echo -e "${GREEN}🎉 $PLATFORM_NAME has been successfully installed!${NC}"
+    echo -e "${GREEN}🎉 $PLATFORM_NAME has been successfully installed with Enhanced Features!${NC}"
     echo
     echo -e "${WHITE}📊 Core Platform Access:${NC}"
     echo -e "  ${CYAN}• Main API:${NC}              http://localhost:${ASSIGNED_PORT_API:-8000}"
+    echo -e "  ${CYAN}• RegulensAI Web UI:${NC}     http://localhost:${ASSIGNED_PORT_FRONTEND:-3000}"
     echo -e "  ${CYAN}• Health Check:${NC}          http://localhost:${ASSIGNED_PORT_API:-8000}/v1/health"
     echo -e "  ${CYAN}• Platform Info:${NC}         http://localhost:${ASSIGNED_PORT_API:-8000}/v1/info"
     echo
-    echo -e "${WHITE}📚 Documentation & Testing:${NC}"
+    echo -e "${WHITE}📚 Enhanced Documentation & Testing:${NC}"
     echo -e "  ${CYAN}• Documentation Portal:${NC}  http://localhost:${ASSIGNED_PORT_DOCS_PORTAL:-8501}"
-    echo -e "    ${GRAY}- Comprehensive user guides with search${NC}"
-    echo -e "    ${GRAY}- Field-level explanations and deployment guides${NC}"
-    echo -e "    ${GRAY}- Configuration tutorials and troubleshooting${NC}"
+    echo -e "    ${GRAY}- Enhanced API docs with OAuth2/SAML examples${NC}"
+    echo -e "    ${GRAY}- Cloud deployment guides (AWS/GCP/Azure)${NC}"
+    echo -e "    ${GRAY}- Configuration management and compliance${NC}"
     echo
     echo -e "  ${CYAN}• Testing Portal:${NC}        http://localhost:${ASSIGNED_PORT_TESTING_PORTAL:-8502}"
     echo -e "    ${GRAY}- Interactive service testing interface${NC}"
     echo -e "    ${GRAY}- Real API endpoint testing with examples${NC}"
     echo -e "    ${GRAY}- Test history and performance analytics${NC}"
+    echo
+    echo -e "  ${CYAN}• Integrated Docs:${NC}       http://localhost:${ASSIGNED_PORT_FRONTEND:-3000}/documentation"
+    echo -e "    ${GRAY}- Web-integrated documentation portal${NC}"
+    echo -e "    ${GRAY}- Interactive API testing and validation${NC}"
+    echo -e "    ${GRAY}- Configuration drift detection${NC}"
     echo
     echo -e "${WHITE}📖 Enhanced API Documentation:${NC}"
     echo -e "  ${CYAN}• Swagger UI:${NC}            http://localhost:${ASSIGNED_PORT_API:-8000}/docs"
@@ -664,52 +725,71 @@ show_installation_summary() {
     echo -e "    ${GRAY}- Clean API reference documentation${NC}"
     echo -e "    ${GRAY}- Code examples in multiple languages${NC}"
     echo
-    echo -e "${WHITE}🔍 Monitoring & Observability:${NC}"
+    echo -e "${WHITE}🔍 Enhanced Monitoring & Observability:${NC}"
+    echo -e "  ${CYAN}• Centralized Logging:${NC}   http://localhost:${ASSIGNED_PORT_KIBANA:-5601} (Kibana)"
+    echo -e "    ${GRAY}- ELK stack with log aggregation and analysis${NC}"
+    echo -e "    ${GRAY}- Real-time log monitoring and alerting${NC}"
+    echo -e "  ${CYAN}• APM Monitoring:${NC}        http://localhost:${ASSIGNED_PORT_GRAFANA:-3001} (Grafana)"
+    echo -e "    ${GRAY}- Application performance monitoring${NC}"
+    echo -e "    ${GRAY}- Distributed tracing and error tracking${NC}"
     echo -e "  ${CYAN}• Jaeger Tracing:${NC}        http://localhost:16686"
-    echo -e "  ${CYAN}• System Metrics:${NC}        http://localhost:8000/v1/metrics"
-    echo -e "  ${CYAN}• Grafana Monitoring:${NC}    http://localhost:3001 (admin/admin)"
-    echo -e "  ${CYAN}• Prometheus:${NC}            http://localhost:9090"
+    echo -e "  ${CYAN}• Prometheus Metrics:${NC}    http://localhost:${ASSIGNED_PORT_PROMETHEUS:-9090}"
+    echo -e "  ${CYAN}• System Health:${NC}         http://localhost:${ASSIGNED_PORT_API:-8000}/v1/health"
     echo
-    echo -e "${WHITE}🔧 Quick Start Guide:${NC}"
-    echo -e "  ${YELLOW}1.${NC} 📖 Visit Documentation Portal (http://localhost:8501) for comprehensive guides"
-    echo -e "  ${YELLOW}2.${NC} 🧪 Use Testing Portal (http://localhost:8502) to test all services"
-    echo -e "  ${YELLOW}3.${NC} 📋 Review Enhanced API docs (http://localhost:8000/docs)"
-    echo -e "  ${YELLOW}4.${NC} ✅ Test system health: curl http://localhost:8000/v1/health"
-    echo -e "  ${YELLOW}5.${NC} ⚙️ Update .env with your Supabase credentials"
-    echo -e "  ${YELLOW}6.${NC} 🤖 Add your OpenAI/Claude API keys for AI features"
-    echo -e "  ${YELLOW}7.${NC} 📊 Configure regulatory data source API keys"
+    echo -e "${WHITE}🔧 Enhanced Quick Start Guide:${NC}"
+    echo -e "  ${YELLOW}1.${NC} 🌐 Access RegulensAI Web UI (http://localhost:${ASSIGNED_PORT_FRONTEND:-3000})"
+    echo -e "  ${YELLOW}2.${NC} 📖 Explore integrated documentation (/documentation in web UI)"
+    echo -e "  ${YELLOW}3.${NC} 📊 Monitor system health in Kibana (http://localhost:${ASSIGNED_PORT_KIBANA:-5601})"
+    echo -e "  ${YELLOW}4.${NC} 📈 View performance metrics in Grafana (http://localhost:${ASSIGNED_PORT_GRAFANA:-3001})"
+    echo -e "  ${YELLOW}5.${NC} 🧪 Test APIs with enhanced documentation portal"
+    echo -e "  ${YELLOW}6.${NC} ✅ Verify system health: curl http://localhost:${ASSIGNED_PORT_API:-8000}/v1/health"
+    echo -e "  ${YELLOW}7.${NC} ⚙️ Update .env with your database credentials"
+    echo -e "  ${YELLOW}8.${NC} 🤖 Add your OpenAI/Claude API keys for AI features"
+    echo -e "  ${YELLOW}9.${NC} 🔧 Configure disaster recovery: python3 -m scripts.dr_manager status"
     echo
     echo -e "${WHITE}📁 Important Files:${NC}"
     echo -e "  ${CYAN}• Configuration:${NC}        .env"
     echo -e "  ${CYAN}• Installation Log:${NC}     install.log"
+    echo -e "  ${CYAN}• Startup Script:${NC}       scripts/start_all_services.sh"
+    echo -e "  ${CYAN}• Database Schema:${NC}      core_infra/database/schema.sql (consolidated)"
     echo -e "  ${CYAN}• Docker Compose:${NC}       docker-compose.yml"
     echo -e "  ${CYAN}• UI Services:${NC}          core_infra/ui/docker-compose.ui.yml"
-    echo -e "  ${CYAN}• Database Schema:${NC}      core_infra/database/schema.sql"
     echo
-    echo -e "${WHITE}🛠 Management Commands:${NC}"
+    echo -e "${WHITE}🛠 Enhanced Management Commands:${NC}"
+    echo -e "  ${CYAN}• Start all services:${NC}   ./scripts/start_all_services.sh"
+    echo -e "  ${CYAN}• Stop all services:${NC}    ./scripts/start_all_services.sh --stop"
+    echo -e "  ${CYAN}• Service status:${NC}       ./scripts/start_all_services.sh --status"
     echo -e "  ${CYAN}• View all logs:${NC}        docker-compose logs -f"
-    echo -e "  ${CYAN}• Stop all services:${NC}    docker-compose down"
-    echo -e "  ${CYAN}• Stop UI portals:${NC}      cd core_infra/ui && docker-compose -f docker-compose.ui.yml down"
-    echo -e "  ${CYAN}• Restart services:${NC}     docker-compose restart"
-    echo -e "  ${CYAN}• Update platform:${NC}      git pull && docker-compose up --build -d"
+    echo -e "  ${CYAN}• DR management:${NC}        python3 -m scripts.dr_manager status"
+    echo -e "  ${CYAN}• Backup management:${NC}    python3 -m scripts.backup_manager status"
+    echo -e "  ${CYAN}• Logging management:${NC}   python3 -m scripts.logging_manager status"
     echo
-    echo -e "${WHITE}🚀 Key Features Available:${NC}"
+    echo -e "${WHITE}🚀 Enhanced Features Available:${NC}"
     echo -e "  ${GREEN}• Real-time regulatory monitoring (SEC, FCA, ECB)${NC}"
     echo -e "  ${GREEN}• AI-powered regulatory analysis (GPT-4, Claude)${NC}"
     echo -e "  ${GREEN}• AML/KYC compliance automation${NC}"
-    echo -e "  ${GREEN}• Risk scoring and analytics${NC}"
-    echo -e "  ${GREEN}• Compliance workflow management${NC}"
+    echo -e "  ${GREEN}• Centralized logging with ELK stack${NC}"
+    echo -e "  ${GREEN}• Application Performance Monitoring (APM)${NC}"
+    echo -e "  ${GREEN}• Disaster recovery with automated testing${NC}"
+    echo -e "  ${GREEN}• Configuration drift detection${NC}"
+    echo -e "  ${GREEN}• Compliance scanning (SOC 2, ISO 27001, GDPR)${NC}"
+    echo -e "  ${GREEN}• Enhanced API documentation with OAuth2/SAML${NC}"
+    echo -e "  ${GREEN}• Multi-cloud deployment guides${NC}"
     echo -e "  ${GREEN}• Enterprise system integrations${NC}"
     echo -e "  ${GREEN}• Audit-ready reporting${NC}"
     echo
-    echo -e "${WHITE}🔐 Security Notes:${NC}"
+    echo -e "${WHITE}🔐 Enhanced Security & Operations:${NC}"
     echo -e "  ${RED}• Change JWT_SECRET_KEY in .env for production${NC}"
     echo -e "  ${RED}• Configure SSL/TLS certificates${NC}"
     echo -e "  ${RED}• Set up proper firewall rules${NC}"
-    echo -e "  ${RED}• Enable backup procedures for database${NC}"
+    echo -e "  ${RED}• Enable automated backup procedures${NC}"
+    echo -e "  ${RED}• Configure disaster recovery testing${NC}"
+    echo -e "  ${RED}• Set up log retention policies${NC}"
+    echo -e "  ${RED}• Configure compliance scanning schedules${NC}"
     echo -e "  ${RED}• Rotate API keys regularly${NC}"
     echo
-    echo -e "${GREEN}For detailed documentation and support: http://localhost:8501${NC}"
+    echo -e "${GREEN}For comprehensive documentation: http://localhost:${ASSIGNED_PORT_FRONTEND:-3000}/documentation${NC}"
+    echo -e "${GREEN}For monitoring and logs: http://localhost:${ASSIGNED_PORT_KIBANA:-5601}${NC}"
     echo
 }
 
@@ -889,8 +969,7 @@ main() {
     setup_environment
     setup_docker_environment
     setup_database
-    start_core_services
-    start_application_services
+    start_all_services
     post_installation_setup
     show_installation_summary
     

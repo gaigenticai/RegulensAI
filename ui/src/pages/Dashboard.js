@@ -63,37 +63,20 @@ const Dashboard = () => {
         axios.get(`${API_BASE_URL}/dashboard/risk-distribution`)
       ]);
 
-      // Mock data for demonstration
-      const mockData = {
-        metrics: {
-          totalCompliance: 94.2,
-          activeAlerts: 12,
-          completedTraining: 87.5,
-          systemHealth: 99.1
-        },
-        recentAlerts: [
-          { id: 1, type: 'warning', message: 'AML threshold exceeded for customer ID 12345', time: '2 hours ago' },
-          { id: 2, type: 'info', message: 'New regulatory update available', time: '4 hours ago' },
-          { id: 3, type: 'error', message: 'KYC document verification failed', time: '6 hours ago' },
-          { id: 4, type: 'success', message: 'Compliance report generated successfully', time: '8 hours ago' }
-        ],
-        complianceScore: [
-          { month: 'Jan', score: 92 },
-          { month: 'Feb', score: 89 },
-          { month: 'Mar', score: 94 },
-          { month: 'Apr', score: 91 },
-          { month: 'May', score: 96 },
-          { month: 'Jun', score: 94 }
-        ],
-        riskDistribution: [
-          { name: 'Low Risk', value: 65, color: '#4caf50' },
-          { name: 'Medium Risk', value: 25, color: '#ff9800' },
-          { name: 'High Risk', value: 10, color: '#f44336' }
-        ],
-        loading: false
-      };
+      if (metricsRes.status === 'fulfilled' && metricsRes.value.data) {
+        setDashboardData(prev => ({ ...prev, metrics: metricsRes.value.data }));
+      }
+      if (alertsRes.status === 'fulfilled' && alertsRes.value.data) {
+        setDashboardData(prev => ({ ...prev, recentAlerts: alertsRes.value.data }));
+      }
+      if (complianceRes.status === 'fulfilled' && complianceRes.value.data) {
+        setDashboardData(prev => ({ ...prev, complianceScore: complianceRes.value.data }));
+      }
+      if (riskRes.status === 'fulfilled' && riskRes.value.data) {
+        setDashboardData(prev => ({ ...prev, riskDistribution: riskRes.value.data }));
+      }
 
-      setDashboardData(mockData);
+      setDashboardData(prev => ({ ...prev, loading: false }));
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       setDashboardData(prev => ({ ...prev, loading: false }));

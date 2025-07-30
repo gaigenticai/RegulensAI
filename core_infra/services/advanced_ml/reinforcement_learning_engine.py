@@ -18,94 +18,12 @@ from enum import Enum
 import random
 from collections import deque
 
-try:
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    import torch.nn.functional as F
-    import gym
-    from gym import spaces
-    HAS_RL_LIBRARIES = True
-except ImportError:
-    HAS_RL_LIBRARIES = False
-    
-    # Create mock objects for when libraries are not installed
-    class torch:
-        @staticmethod
-        def device(device_str):
-            return "cpu"
-        @staticmethod
-        def cuda():
-            class MockCuda:
-                @staticmethod
-                def is_available():
-                    return False
-            return MockCuda()
-        @staticmethod
-        def zeros(*args, **kwargs):
-            return [[0.0]]
-        @staticmethod
-        def FloatTensor(x):
-            return x
-        @staticmethod
-        def LongTensor(x):
-            return x
-        @staticmethod
-        def BoolTensor(x):
-            return x
-        @staticmethod
-        def no_grad():
-            return type('MockContext', (), {'__enter__': lambda self: None, '__exit__': lambda self, *args: None})()
-        
-        class nn:
-            class Module:
-                def __init__(self):
-                    pass
-                def to(self, device):
-                    return self
-                def parameters(self):
-                    return []
-                def state_dict(self):
-                    return {}
-                def load_state_dict(self, state):
-                    pass
-            
-            class Linear:
-                def __init__(self, *args, **kwargs):
-                    pass
-            
-            class ReLU:
-                def __init__(self, *args, **kwargs):
-                    pass
-            
-            class Sequential:
-                def __init__(self, *args, **kwargs):
-                    pass
-        
-        class optim:
-            class Adam:
-                def __init__(self, *args, **kwargs):
-                    pass
-                def zero_grad(self):
-                    pass
-                def step(self):
-                    pass
-            
-            class SGD:
-                def __init__(self, *args, **kwargs):
-                    pass
-                def zero_grad(self):
-                    pass
-                def step(self):
-                    pass
-    
-    # Create module-level references
-    nn = torch.nn
-    
-    class F:
-        @staticmethod
-        def mse_loss(*args, **kwargs):
-            return 0.0
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import gym
+from gym import spaces
 
 from core_infra.config import get_settings
 
@@ -300,12 +218,11 @@ class DQNAgent:
         self.memory = deque(maxlen=config.memory_size)
         self.epsilon = config.epsilon_start
         
-        if HAS_RL_LIBRARIES:
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            self.q_network = self._build_network().to(self.device)
-            self.target_network = self._build_network().to(self.device)
-            self.optimizer = optim.Adam(self.q_network.parameters(), lr=config.learning_rate)
-            self.update_target_network()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.q_network = self._build_network().to(self.device)
+        self.target_network = self._build_network().to(self.device)
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=config.learning_rate)
+        self.update_target_network()
     
     def _build_network(self) -> Any:
         """Build Q-network"""
@@ -325,9 +242,6 @@ class DQNAgent:
     
     def act(self, state: np.ndarray, training: bool = True) -> int:
         """Choose action using epsilon-greedy policy"""
-        if not HAS_RL_LIBRARIES:
-            return random.randint(0, self.action_size - 1)
-        
         if training and random.random() <= self.epsilon:
             return random.randint(0, self.action_size - 1)
         
@@ -341,7 +255,7 @@ class DQNAgent:
     
     def replay(self):
         """Train the agent on a batch of experiences"""
-        if not HAS_RL_LIBRARIES or len(self.memory) < self.config.batch_size:
+        if len(self.memory) < self.config.batch_size:
             return
         
         batch = random.sample(self.memory, self.config.batch_size)
@@ -366,8 +280,7 @@ class DQNAgent:
     
     def update_target_network(self):
         """Update target network"""
-        if HAS_RL_LIBRARIES:
-            self.target_network.load_state_dict(self.q_network.state_dict())
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
 class ReinforcementLearningEngine:
     """Enterprise-grade Reinforcement Learning Engine"""
@@ -379,10 +292,7 @@ class ReinforcementLearningEngine:
         
     async def initialize(self):
         """Initialize the RL engine"""
-        if not HAS_RL_LIBRARIES:
-            logger.warning("RL libraries not installed - running in simulation mode")
-        else:
-            logger.info("Reinforcement Learning Engine initialized successfully")
+        logger.info("Reinforcement Learning Engine initialized successfully")
     
     async def create_environment(self, env_config: Dict[str, Any]):
         """Create a reinforcement learning environment"""
@@ -453,10 +363,6 @@ class ReinforcementLearningEngine:
     ) -> Dict[str, Any]:
         """Train a reinforcement learning agent"""
         try:
-            if not HAS_RL_LIBRARIES:
-                logger.info("Simulating RL agent training")
-                return await self._simulate_rl_training(training_config)
-            
             total_episodes = training_config.get("total_episodes", 1000)
             max_steps = training_config.get("max_steps_per_episode", 500)
             
@@ -535,16 +441,6 @@ class ReinforcementLearningEngine:
     ) -> Dict[str, Any]:
         """Evaluate a trained RL agent"""
         try:
-            if not HAS_RL_LIBRARIES:
-                return {
-                    "metrics": {
-                        "average_reward": 150.0,
-                        "win_rate": 0.75,
-                        "sharpe_ratio": 1.2,
-                        "max_drawdown": 0.15
-                    }
-                }
-            
             num_episodes = evaluation_config.get("num_episodes", 100)
             max_steps = evaluation_config.get("max_steps_per_episode", 500)
             
@@ -695,30 +591,4 @@ class ReinforcementLearningEngine:
             return PPOAgent(state_size, action_size, config)
         except ImportError:
             logger.warning("PPO agent not available, using DQN as fallback")
-            return DQNAgent(state_size, action_size, config)
-    
-    async def _simulate_rl_training(self, training_config: Dict[str, Any]) -> Dict[str, Any]:
-        """Simulate RL training when libraries are not available"""
-        total_episodes = training_config.get("total_episodes", 1000)
-        
-        # Generate realistic training curve
-        episode_rewards = []
-        for episode in range(total_episodes):
-            # Simulate learning curve with noise
-            base_reward = min(episode * 0.1, 100)  # Gradual improvement
-            noise = np.random.normal(0, 10)
-            reward = base_reward + noise
-            episode_rewards.append(reward)
-        
-        return {
-            "episode_rewards": episode_rewards,
-            "episode_lengths": [np.random.randint(50, 200) for _ in range(total_episodes)],
-            "average_reward": float(np.mean(episode_rewards)),
-            "best_episode_reward": float(np.max(episode_rewards)),
-            "convergence_episode": total_episodes // 2,
-            "training_metrics": {
-                "total_episodes": total_episodes,
-                "final_epsilon": 0.01,
-                "learning_rate": training_config.get("learning_rate", 0.001)
-            }
-        } 
+            return DQNAgent(state_size, action_size, config) 

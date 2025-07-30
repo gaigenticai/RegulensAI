@@ -19,14 +19,7 @@ import time
 import random
 from itertools import product
 
-try:
-    from sklearn.model_selection import GridSearchCV, RandomizedSearchCV, ParameterGrid
-    from sklearn.metrics import make_scorer
-    import optuna
-    from scipy.optimize import differential_evolution
-    HAS_OPTIMIZATION_LIBRARIES = True
-except ImportError:
-    HAS_OPTIMIZATION_LIBRARIES = False
+HAS_OPTIMIZATION_LIBRARIES = True
 
 from core_infra.config import get_settings
 
@@ -100,7 +93,7 @@ class ModelOptimizer:
     async def initialize(self):
         """Initialize the model optimizer"""
         if not HAS_OPTIMIZATION_LIBRARIES:
-            logger.warning("Optimization libraries not installed - running in simulation mode")
+            raise ImportError("Optimization libraries are required.");
         else:
             logger.info("Model Optimizer initialized successfully")
     
@@ -118,8 +111,7 @@ class ModelOptimizer:
             start_time = time.time()
             
             if not HAS_OPTIMIZATION_LIBRARIES:
-                logger.info("Simulating hyperparameter optimization")
-                return await self._simulate_optimization(config)
+                raise ImportError("Optimization libraries are required.");
             
             if config.method == OptimizationMethod.GRID_SEARCH:
                 result = await self._grid_search_optimization(
@@ -297,7 +289,7 @@ class ModelOptimizer:
         """Bayesian optimization using Optuna"""
         
         if not HAS_OPTIMIZATION_LIBRARIES:
-            return await self._simulate_optimization(config)
+            raise ImportError("Optimization libraries are required.");
         
         try:
             import optuna
@@ -516,7 +508,7 @@ class ModelOptimizer:
             logger.info("Starting Neural Architecture Search")
             
             if not HAS_OPTIMIZATION_LIBRARIES:
-                return await self._simulate_nas(input_shape, output_shape, search_space)
+                raise ImportError("Optimization libraries are required.");
             
             search_iterations = config.get("search_iterations", 50)
             max_layers = search_space.get("max_layers", 10)
@@ -643,96 +635,6 @@ class ModelOptimizer:
             scorer = make_scorer(scorer._score_func, greater_is_better=False)
         
         return scorer
-    
-    async def _simulate_optimization(self, config: OptimizationConfig) -> OptimizationResult:
-        """Simulate optimization when libraries are not available"""
-        
-        logger.info("Simulating optimization process")
-        
-        # Generate fake optimization history
-        optimization_history = []
-        best_score = float('-inf') if config.objective == OptimizationObjective.MAXIMIZE else float('inf')
-        best_params = {}
-        best_trial = 0
-        
-        for trial in range(config.n_trials):
-            # Generate random parameters
-            params = {}
-            for param in config.parameter_space:
-                if param.param_type == ParameterType.CATEGORICAL:
-                    params[param.name] = random.choice(param.values)
-                elif param.param_type == ParameterType.INTEGER:
-                    if isinstance(param.values, tuple):
-                        params[param.name] = random.randint(param.values[0], param.values[1])
-                    else:
-                        params[param.name] = random.choice(param.values)
-                elif param.param_type == ParameterType.FLOAT:
-                    if isinstance(param.values, tuple):
-                        params[param.name] = random.uniform(param.values[0], param.values[1])
-                    else:
-                        params[param.name] = random.choice(param.values)
-                elif param.param_type == ParameterType.BOOLEAN:
-                    params[param.name] = random.choice([True, False])
-            
-            # Generate fake score with improvement trend
-            base_score = 0.8 + 0.15 * (trial / config.n_trials)  # Gradual improvement
-            noise = random.gauss(0, 0.05)
-            score = max(0.5, min(0.99, base_score + noise))
-            
-            if config.objective == OptimizationObjective.MINIMIZE:
-                score = 1.0 - score  # Invert for minimization
-            
-            optimization_history.append({
-                'trial': trial,
-                'parameters': params,
-                'score': score
-            })
-            
-            # Update best
-            if ((config.objective == OptimizationObjective.MAXIMIZE and score > best_score) or
-                (config.objective == OptimizationObjective.MINIMIZE and score < best_score)):
-                best_score = score
-                best_params = params.copy()
-                best_trial = trial
-        
-        return OptimizationResult(
-            best_parameters=best_params,
-            best_score=best_score,
-            best_trial_number=best_trial,
-            optimization_history=optimization_history,
-            total_trials=config.n_trials,
-            optimization_time=60.0  # Fake time
-        )
-    
-    async def _simulate_nas(
-        self,
-        input_shape: Tuple[int, ...],
-        output_shape: int,
-        search_space: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Simulate Neural Architecture Search"""
-        
-        logger.info("Simulating Neural Architecture Search")
-        
-        # Generate fake best architecture
-        best_architecture = {
-            "layers": [
-                {"type": "dense", "units": 128, "activation": "relu"},
-                {"type": "dropout", "rate": 0.3},
-                {"type": "dense", "units": 64, "activation": "relu"},
-                {"type": "dropout", "rate": 0.2},
-                {"type": "dense", "units": output_shape, "activation": "softmax"}
-            ],
-            "optimizer": "adam",
-            "learning_rate": 0.001
-        }
-        
-        return {
-            "best_architecture": best_architecture,
-            "best_score": 0.92,
-            "search_history": [],
-            "total_iterations": 50
-        }
     
     async def _generate_random_architecture(
         self,

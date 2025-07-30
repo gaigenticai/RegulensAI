@@ -784,13 +784,108 @@ async def execute_migration(environment: str, migration: Optional[str], dry_run:
 
 async def execute_backup(environment: str, backup_type: str, user_id: str):
     """Execute database backup in background."""
+    import subprocess
+    import os
+    from datetime import datetime
+
     try:
         logger.info("Starting backup", environment=environment, type=backup_type, user=user_id)
-        
-        # This would execute actual backup commands
-        # For now, just log the action
-        
-        logger.info("Backup completed successfully", environment=environment)
-        
+
+        # Get database configuration
+        settings = get_settings()
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        backup_filename = f"regulensai_{environment}_backup_{timestamp}.sql"
+        backup_path = f"/tmp/{backup_filename}"
+
+        # Determine database URL based on environment
+        if environment == "production":
+            db_url = settings.database_url
+        elif environment == "staging":
+            db_url = getattr(settings, 'staging_database_url', settings.database_url)
+        else:
+            db_url = settings.database_url
+
+        # Create database backup using pg_dump
+        dump_cmd = [
+            "pg_dump",
+            db_url,
+            "--format=custom",
+            "--compress=6",
+            "--verbose",
+            "--file", backup_path
+        ]
+
+        logger.info("Executing pg_dump", command=" ".join(dump_cmd[:-1] + ["[DATABASE_URL]", "--file", backup_path]))
+
+        # Execute backup command
+        result = subprocess.run(
+            dump_cmd,
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1 hour timeout
+        )
+
+        if result.returncode == 0:
+            # Get backup file size
+            backup_size = os.path.getsize(backup_path)
+            logger.info("Database backup created",
+                       file=backup_path,
+                       size_bytes=backup_size,
+                       size_mb=round(backup_size / 1024 / 1024, 2))
+
+            # Compress backup if not already compressed
+            if backup_type == "compressed":
+                compressed_path = f"{backup_path}.gz"
+                gzip_cmd = ["gzip", backup_path]
+
+                gzip_result = subprocess.run(gzip_cmd, capture_output=True, text=True)
+
+                if gzip_result.returncode == 0:
+                    backup_path = compressed_path
+                    compressed_size = os.path.getsize(backup_path)
+                    logger.info("Backup compressed",
+                               file=backup_path,
+                               compressed_size_mb=round(compressed_size / 1024 / 1024, 2))
+                else:
+                    logger.warning("Backup compression failed", error=gzip_result.stderr)
+
+            # Upload to S3 if configured
+            s3_bucket = getattr(settings, 'backup_s3_bucket', None)
+            if s3_bucket:
+                try:
+                    s3_key = f"database/{environment}/{os.path.basename(backup_path)}"
+                    s3_cmd = [
+                        "aws", "s3", "cp", backup_path, f"s3://{s3_bucket}/{s3_key}",
+                        "--storage-class", "STANDARD_IA"
+                    ]
+
+                    s3_result = subprocess.run(s3_cmd, capture_output=True, text=True)
+
+                    if s3_result.returncode == 0:
+                        logger.info("Backup uploaded to S3", bucket=s3_bucket, key=s3_key)
+
+                        # Clean up local file after successful upload
+                        os.remove(backup_path)
+                        logger.info("Local backup file cleaned up")
+                    else:
+                        logger.error("S3 upload failed", error=s3_result.stderr)
+
+                except Exception as s3_error:
+                    logger.error("S3 upload error", error=str(s3_error))
+
+            logger.info("Backup completed successfully", environment=environment, user=user_id)
+
+        else:
+            logger.error("pg_dump failed",
+                        returncode=result.returncode,
+                        stdout=result.stdout,
+                        stderr=result.stderr)
+            raise Exception(f"Database backup failed: {result.stderr}")
+
+    except subprocess.TimeoutExpired:
+        logger.error("Backup timeout", environment=environment, timeout_seconds=3600)
+        raise Exception("Backup operation timed out after 1 hour")
+
     except Exception as e:
         logger.error("Backup execution failed", error=str(e), environment=environment)
+        raise

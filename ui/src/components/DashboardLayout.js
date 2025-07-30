@@ -31,7 +31,8 @@ import {
   Logout,
   AccountCircle,
   Notifications,
-  Build
+  Build,
+  MenuBook
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -44,6 +45,7 @@ const navigationItems = [
   { text: 'Training Portal', icon: <School />, path: '/training' },
   { text: 'Operations', icon: <Build />, path: '/operations', permission: 'operations.read' },
   { text: 'System Health', icon: <HealthAndSafety />, path: '/system' },
+  { text: 'Documentation', icon: <MenuBook />, path: '/documentation' },
   { text: 'User Management', icon: <People />, path: '/users', permission: 'manage_users' },
   { text: 'Settings', icon: <Settings />, path: '/settings' },
 ];

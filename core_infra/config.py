@@ -357,10 +357,115 @@ class Settings(BaseSettings):
     # ============================================================================
     # API RATE LIMITING
     # ============================================================================
-    
+
     rate_limit_enabled: bool = Field(default=True, env="RATE_LIMIT_ENABLED")
     rate_limit_requests_per_minute: int = Field(default=100, env="RATE_LIMIT_REQUESTS_PER_MINUTE")
     rate_limit_burst: int = Field(default=20, env="RATE_LIMIT_BURST")
+
+    # ============================================================================
+    # BACKUP CONFIGURATION
+    # ============================================================================
+
+    backup_enabled: bool = Field(default=True, env="BACKUP_ENABLED")
+    backup_s3_bucket: Optional[str] = Field(default=None, env="BACKUP_S3_BUCKET")
+    backup_retention_days: int = Field(default=30, env="BACKUP_RETENTION_DAYS")
+    backup_schedule: str = Field(default="0 2 * * *", env="BACKUP_SCHEDULE")  # Daily at 2 AM
+    backup_compression_enabled: bool = Field(default=True, env="BACKUP_COMPRESSION_ENABLED")
+    backup_notification_webhook: Optional[str] = Field(default=None, env="BACKUP_NOTIFICATION_WEBHOOK")
+    staging_database_url: Optional[str] = Field(default=None, env="STAGING_DATABASE_URL")
+
+    # ============================================================================
+    # CENTRALIZED LOGGING CONFIGURATION
+    # ============================================================================
+
+    # Elasticsearch Configuration
+    elasticsearch_enabled: bool = Field(default=False, env="ELASTICSEARCH_ENABLED")
+    elasticsearch_host: str = Field(default="localhost", env="ELASTICSEARCH_HOST")
+    elasticsearch_port: int = Field(default=9200, env="ELASTICSEARCH_PORT")
+    elasticsearch_scheme: str = Field(default="http", env="ELASTICSEARCH_SCHEME")
+    elasticsearch_username: Optional[str] = Field(default=None, env="ELASTICSEARCH_USERNAME")
+    elasticsearch_password: Optional[SecretStr] = Field(default=None, env="ELASTICSEARCH_PASSWORD")
+    elasticsearch_verify_certs: bool = Field(default=False, env="ELASTICSEARCH_VERIFY_CERTS")
+    elasticsearch_timeout: int = Field(default=30, env="ELASTICSEARCH_TIMEOUT")
+
+    # Log Shipping Configuration
+    log_buffer_size: int = Field(default=1000, env="LOG_BUFFER_SIZE")
+    log_flush_interval: int = Field(default=30, env="LOG_FLUSH_INTERVAL")
+    log_retry_attempts: int = Field(default=3, env="LOG_RETRY_ATTEMPTS")
+    log_retry_delay: int = Field(default=5, env="LOG_RETRY_DELAY")
+
+    # File Logging Configuration
+    file_logging_enabled: bool = Field(default=True, env="FILE_LOGGING_ENABLED")
+    log_directory: str = Field(default="/var/log/regulensai", env="LOG_DIRECTORY")
+
+    # External Logging Services
+    siem_logging_enabled: bool = Field(default=False, env="SIEM_LOGGING_ENABLED")
+    siem_endpoint: Optional[str] = Field(default=None, env="SIEM_ENDPOINT")
+    siem_api_key: Optional[SecretStr] = Field(default=None, env="SIEM_API_KEY")
+
+    # Log Webhooks (JSON array of webhook configurations)
+    log_webhooks_config: Optional[str] = Field(default=None, env="LOG_WEBHOOKS_CONFIG")
+
+    @property
+    def log_webhooks(self) -> List[Dict[str, Any]]:
+        """Parse log webhooks configuration from JSON."""
+        if not self.log_webhooks_config:
+            return []
+
+        try:
+            import json
+            return json.loads(self.log_webhooks_config)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    # ============================================================================
+    # APPLICATION PERFORMANCE MONITORING (APM) CONFIGURATION
+    # ============================================================================
+
+    # Elastic APM Configuration
+    elastic_apm_enabled: bool = Field(default=False, env="ELASTIC_APM_ENABLED")
+    elastic_apm_service_name: str = Field(default="regulensai", env="ELASTIC_APM_SERVICE_NAME")
+    elastic_apm_server_url: str = Field(default="http://localhost:8200", env="ELASTIC_APM_SERVER_URL")
+    elastic_apm_secret_token: Optional[SecretStr] = Field(default=None, env="ELASTIC_APM_SECRET_TOKEN")
+    elastic_apm_sample_rate: float = Field(default=1.0, env="ELASTIC_APM_SAMPLE_RATE")
+
+    # New Relic Configuration
+    newrelic_enabled: bool = Field(default=False, env="NEWRELIC_ENABLED")
+    newrelic_config_file: Optional[str] = Field(default=None, env="NEWRELIC_CONFIG_FILE")
+    newrelic_license_key: Optional[SecretStr] = Field(default=None, env="NEWRELIC_LICENSE_KEY")
+
+    # Datadog Configuration
+    datadog_apm_enabled: bool = Field(default=False, env="DATADOG_APM_ENABLED")
+    datadog_hostname: Optional[str] = Field(default=None, env="DATADOG_HOSTNAME")
+    datadog_port: int = Field(default=8126, env="DATADOG_PORT")
+    datadog_service_name: str = Field(default="regulensai", env="DATADOG_SERVICE_NAME")
+    datadog_api_key: Optional[SecretStr] = Field(default=None, env="DATADOG_API_KEY")
+
+    # Performance Monitoring Configuration
+    performance_monitoring_enabled: bool = Field(default=True, env="PERFORMANCE_MONITORING_ENABLED")
+    performance_baseline_update_interval: int = Field(default=3600, env="PERFORMANCE_BASELINE_UPDATE_INTERVAL")  # seconds
+    performance_regression_threshold: float = Field(default=20.0, env="PERFORMANCE_REGRESSION_THRESHOLD")  # percentage
+
+    # Database Performance Monitoring
+    db_performance_monitoring_enabled: bool = Field(default=True, env="DB_PERFORMANCE_MONITORING_ENABLED")
+    db_slow_query_threshold: float = Field(default=1.0, env="DB_SLOW_QUERY_THRESHOLD")  # seconds
+    db_query_sampling_rate: float = Field(default=1.0, env="DB_QUERY_SAMPLING_RATE")
+
+    # Error Tracking Configuration
+    error_tracking_enabled: bool = Field(default=True, env="ERROR_TRACKING_ENABLED")
+    error_rate_alert_threshold: float = Field(default=10.0, env="ERROR_RATE_ALERT_THRESHOLD")  # errors per minute
+    error_aggregation_window: int = Field(default=300, env="ERROR_AGGREGATION_WINDOW")  # seconds
+
+    # Resource Monitoring Configuration
+    resource_monitoring_enabled: bool = Field(default=True, env="RESOURCE_MONITORING_ENABLED")
+    resource_monitoring_interval: int = Field(default=30, env="RESOURCE_MONITORING_INTERVAL")  # seconds
+    cpu_usage_alert_threshold: float = Field(default=80.0, env="CPU_USAGE_ALERT_THRESHOLD")  # percentage
+    memory_usage_alert_threshold: float = Field(default=85.0, env="MEMORY_USAGE_ALERT_THRESHOLD")  # percentage
+
+    # Business Metrics Configuration
+    business_metrics_enabled: bool = Field(default=True, env="BUSINESS_METRICS_ENABLED")
+    compliance_processing_time_threshold: float = Field(default=30.0, env="COMPLIANCE_PROCESSING_TIME_THRESHOLD")  # seconds
+    regulatory_ingestion_rate_threshold: float = Field(default=100.0, env="REGULATORY_INGESTION_RATE_THRESHOLD")  # records/second
     
     # ============================================================================
     # COMPLIANCE SPECIFIC CONFIGURATION
