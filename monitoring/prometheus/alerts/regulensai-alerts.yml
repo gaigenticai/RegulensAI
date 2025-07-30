@@ -1,0 +1,316 @@
+groups:
+  - name: regulensai.api
+    rules:
+      - alert: HighAPIErrorRate
+        expr: rate(regulensai_api_requests_total{status_code=~"5.."}[5m]) / rate(regulensai_api_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+          component: regulensai
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-api-error-rate"
+
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(regulensai_api_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+          component: regulensai
+        annotations:
+          summary: "High API latency detected"
+          description: "95th percentile API latency is {{ $value }}s for the last 5 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-api-latency"
+
+      - alert: APIServiceDown
+        expr: up{job="regulensai-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+          component: regulensai
+        annotations:
+          summary: "API service is down"
+          description: "RegulensAI API service has been down for more than 1 minute"
+          runbook_url: "https://docs.regulensai.com/runbooks/service-down"
+
+      - alert: HighAPIRequestRate
+        expr: rate(regulensai_api_requests_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+          component: regulensai
+        annotations:
+          summary: "High API request rate"
+          description: "API request rate is {{ $value }} requests/second for the last 5 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-request-rate"
+
+  - name: regulensai.external_data
+    rules:
+      - alert: ExternalDataProviderDown
+        expr: rate(regulensai_external_data_requests_total{status="error"}[10m]) / rate(regulensai_external_data_requests_total[10m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          service: integrations
+          component: external_data
+        annotations:
+          summary: "External data provider {{ $labels.provider }} is experiencing high error rates"
+          description: "Error rate for {{ $labels.provider }} is {{ $value | humanizePercentage }} for the last 10 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/external-provider-down"
+
+      - alert: ExternalDataHighLatency
+        expr: histogram_quantile(0.95, rate(regulensai_external_data_request_duration_seconds_bucket[10m])) > 30
+        for: 10m
+        labels:
+          severity: warning
+          service: integrations
+          component: external_data
+        annotations:
+          summary: "High latency for external data provider {{ $labels.provider }}"
+          description: "95th percentile latency for {{ $labels.provider }} is {{ $value }}s"
+          runbook_url: "https://docs.regulensai.com/runbooks/external-provider-latency"
+
+      - alert: ExternalDataRateLimitHit
+        expr: rate(regulensai_external_data_rate_limits_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: integrations
+          component: external_data
+        annotations:
+          summary: "Rate limit hit for external data provider {{ $labels.provider }}"
+          description: "Rate limit has been hit {{ $value }} times in the last 5 minutes for {{ $labels.provider }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/rate-limit-hit"
+
+      - alert: LowCacheHitRatio
+        expr: regulensai_cache_hit_ratio < 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: integrations
+          component: cache
+        annotations:
+          summary: "Low cache hit ratio for {{ $labels.cache_type }}"
+          description: "Cache hit ratio for {{ $labels.cache_type }} is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/low-cache-hit-ratio"
+
+  - name: regulensai.notifications
+    rules:
+      - alert: HighNotificationFailureRate
+        expr: rate(regulensai_notifications_sent_total{status="error"}[10m]) / rate(regulensai_notifications_sent_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: notifications
+          component: regulensai
+        annotations:
+          summary: "High notification failure rate for {{ $labels.channel }}"
+          description: "Notification failure rate for {{ $labels.channel }} is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/notification-failures"
+
+      - alert: NotificationQueueBacklog
+        expr: regulensai_notification_queue_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications
+          component: queue
+        annotations:
+          summary: "Large notification queue backlog"
+          description: "Notification queue size for {{ $labels.priority }} priority is {{ $value }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/notification-queue-backlog"
+
+      - alert: NotificationServiceDown
+        expr: up{job="regulensai-notifications"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: notifications
+          component: regulensai
+        annotations:
+          summary: "Notification service is down"
+          description: "RegulensAI notification service has been down for more than 1 minute"
+          runbook_url: "https://docs.regulensai.com/runbooks/service-down"
+
+  - name: regulensai.grc
+    rules:
+      - alert: GRCSyncFailure
+        expr: rate(regulensai_grc_sync_operations_total{status="error"}[30m]) / rate(regulensai_grc_sync_operations_total[30m]) > 0.2
+        for: 10m
+        labels:
+          severity: critical
+          service: integrations
+          component: grc
+        annotations:
+          summary: "High GRC sync failure rate for {{ $labels.system_type }}"
+          description: "GRC sync failure rate for {{ $labels.system_type }} is {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/grc-sync-failures"
+
+      - alert: GRCSyncHighLatency
+        expr: histogram_quantile(0.95, rate(regulensai_grc_sync_duration_seconds_bucket[30m])) > 300
+        for: 15m
+        labels:
+          severity: warning
+          service: integrations
+          component: grc
+        annotations:
+          summary: "High GRC sync latency for {{ $labels.system_type }}"
+          description: "95th percentile GRC sync latency for {{ $labels.system_type }} is {{ $value }}s"
+          runbook_url: "https://docs.regulensai.com/runbooks/grc-sync-latency"
+
+  - name: regulensai.database
+    rules:
+      - alert: HighDatabaseConnections
+        expr: regulensai_database_connections_active / regulensai_database_connections_pool_size > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+          component: connections
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value | humanizePercentage }} of pool size"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-db-connections"
+
+      - alert: SlowDatabaseQueries
+        expr: histogram_quantile(0.95, rate(regulensai_database_query_duration_seconds_bucket[10m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: database
+          component: performance
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile database query time is {{ $value }}s for {{ $labels.table }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/slow-db-queries"
+
+      - alert: DatabaseErrorRate
+        expr: rate(regulensai_database_queries_total{status="error"}[10m]) / rate(regulensai_database_queries_total[10m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: database
+          component: errors
+        annotations:
+          summary: "High database error rate"
+          description: "Database error rate is {{ $value | humanizePercentage }} for {{ $labels.table }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/database-errors"
+
+  - name: regulensai.system
+    rules:
+      - alert: HighCPUUsage
+        expr: regulensai_system_cpu_usage_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+          component: cpu
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for the last 10 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-cpu-usage"
+
+      - alert: HighMemoryUsage
+        expr: (regulensai_system_memory_usage_bytes / regulensai_system_memory_total_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+          component: memory
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value | humanizePercentage }} for the last 10 minutes"
+          runbook_url: "https://docs.regulensai.com/runbooks/high-memory-usage"
+
+      - alert: DiskSpaceLow
+        expr: (regulensai_system_disk_usage_bytes / (regulensai_system_disk_usage_bytes + regulensai_system_disk_free_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+          component: disk
+        annotations:
+          summary: "Low disk space on {{ $labels.device }}"
+          description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.device }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/low-disk-space"
+
+  - name: regulensai.business
+    rules:
+      - alert: HighComplianceViolations
+        expr: rate(regulensai_compliance_violations_total{severity="critical"}[1h]) > 10
+        for: 15m
+        labels:
+          severity: critical
+          service: compliance
+          component: violations
+        annotations:
+          summary: "High rate of critical compliance violations"
+          description: "Critical compliance violations rate is {{ $value }} per hour for tenant {{ $labels.tenant_id }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/compliance-violations"
+
+      - alert: EntityScreeningBacklog
+        expr: rate(regulensai_entities_screened_total[10m]) < 1
+        for: 30m
+        labels:
+          severity: warning
+          service: screening
+          component: processing
+        annotations:
+          summary: "Low entity screening rate"
+          description: "Entity screening rate is {{ $value }} per minute, indicating possible backlog"
+          runbook_url: "https://docs.regulensai.com/runbooks/screening-backlog"
+
+      - alert: FeatureFlagEvaluationErrors
+        expr: rate(regulensai_feature_flag_evaluations_total{result="error"}[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: feature_flags
+          component: evaluation
+        annotations:
+          summary: "Feature flag evaluation errors"
+          description: "Feature flag evaluation error rate is {{ $value }} for {{ $labels.flag_name }}"
+          runbook_url: "https://docs.regulensai.com/runbooks/feature-flag-errors"
+
+  - name: regulensai.sla
+    rules:
+      - alert: SLAViolationAPIAvailability
+        expr: (rate(regulensai_api_requests_total{status_code!~"5.."}[5m]) / rate(regulensai_api_requests_total[5m])) < 0.999
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+          component: sla
+        annotations:
+          summary: "API availability SLA violation"
+          description: "API availability is {{ $value | humanizePercentage }}, below 99.9% SLA"
+          runbook_url: "https://docs.regulensai.com/runbooks/sla-violation"
+
+      - alert: SLAViolationAPILatency
+        expr: histogram_quantile(0.95, rate(regulensai_api_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+          component: sla
+        annotations:
+          summary: "API latency SLA violation"
+          description: "95th percentile API latency is {{ $value }}s, above 2s SLA"
+          runbook_url: "https://docs.regulensai.com/runbooks/sla-violation"
+
+      - alert: SLAViolationNotificationDelivery
+        expr: (rate(regulensai_notifications_sent_total{status="success"}[10m]) / rate(regulensai_notifications_sent_total[10m])) < 0.995
+        for: 10m
+        labels:
+          severity: critical
+          service: notifications
+          component: sla
+        annotations:
+          summary: "Notification delivery SLA violation"
+          description: "Notification delivery success rate is {{ $value | humanizePercentage }}, below 99.5% SLA"
+          runbook_url: "https://docs.regulensai.com/runbooks/sla-violation"

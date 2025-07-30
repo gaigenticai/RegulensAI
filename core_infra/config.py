@@ -137,6 +137,22 @@ class Settings(BaseSettings):
     smtp_password: Optional[SecretStr] = Field(default=None, env="SMTP_PASSWORD")
     email_from: str = Field(default="noreply@regulens-ai.com", env="EMAIL_FROM")
     email_from_name: str = Field(default="Regulens AI Compliance Platform", env="EMAIL_FROM_NAME")
+
+    # ============================================================================
+    # SMS CONFIGURATION (TWILIO)
+    # ============================================================================
+
+    twilio_account_sid: Optional[str] = Field(default=None, env="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: Optional[SecretStr] = Field(default=None, env="TWILIO_AUTH_TOKEN")
+    twilio_from_number: Optional[str] = Field(default=None, env="TWILIO_FROM_NUMBER")
+
+    # ============================================================================
+    # COLLABORATION PLATFORMS
+    # ============================================================================
+
+    slack_webhook_url: Optional[str] = Field(default=None, env="SLACK_WEBHOOK_URL")
+    teams_webhook_url: Optional[str] = Field(default=None, env="TEAMS_WEBHOOK_URL")
+    discord_webhook_url: Optional[str] = Field(default=None, env="DISCORD_WEBHOOK_URL")
     
     # ============================================================================
     # OBSERVABILITY AND MONITORING

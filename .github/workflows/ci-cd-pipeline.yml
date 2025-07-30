@@ -1,0 +1,375 @@
+name: RegulensAI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'release/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: regulensai
+
+jobs:
+  # Code Quality and Security Checks
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+
+    - name: Run code formatting check
+      run: |
+        black --check .
+        isort --check-only .
+
+    - name: Run linting
+      run: |
+        flake8 .
+        pylint core_infra/
+
+    - name: Run type checking
+      run: |
+        mypy core_infra/
+
+    - name: Run security scan
+      uses: PyCQA/bandit-action@v1
+      with:
+        path: "core_infra/"
+        level: "high"
+        confidence: "high"
+
+    - name: Run dependency vulnerability scan
+      run: |
+        safety check
+        pip-audit
+
+  # Unit and Integration Tests
+  test:
+    runs-on: ubuntu-latest
+    needs: code-quality
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: regulensai_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Run unit tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/regulensai_test
+        REDIS_URL: redis://localhost:6379/0
+        ENVIRONMENT: test
+      run: |
+        pytest tests/unit/ -v --cov=core_infra --cov-report=xml --cov-report=html
+
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/regulensai_test
+        REDIS_URL: redis://localhost:6379/0
+        ENVIRONMENT: test
+      run: |
+        pytest tests/integration/ -v --maxfail=5
+
+    - name: Run security tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/regulensai_test
+        REDIS_URL: redis://localhost:6379/0
+        ENVIRONMENT: test
+      run: |
+        pytest tests/security/ -v --maxfail=3
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+  # Build and Push Container Images
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push API image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.api
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}-api
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Build and push Notifications image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.notifications
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}-notifications
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Build and push Integrations image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.integrations
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}-integrations
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Build and push Worker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./docker/Dockerfile.worker
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}-worker
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Sign container images
+      run: |
+        cosign sign --yes ${{ steps.meta.outputs.tags }}-api@${{ steps.build.outputs.digest }}
+        cosign sign --yes ${{ steps.meta.outputs.tags }}-notifications@${{ steps.build.outputs.digest }}
+        cosign sign --yes ${{ steps.meta.outputs.tags }}-integrations@${{ steps.build.outputs.digest }}
+        cosign sign --yes ${{ steps.meta.outputs.tags }}-worker@${{ steps.build.outputs.digest }}
+
+  # Security Scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ needs.build.outputs.image-tag }}-api
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/develop' || github.event.inputs.environment == 'staging'
+    environment: staging
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Deploy to staging
+      run: |
+        helm upgrade --install regulensai-staging ./helm/regulensai \
+          --namespace regulensai-staging \
+          --create-namespace \
+          --values ./helm/regulensai/values-staging.yaml \
+          --set image.tag=${{ github.sha }} \
+          --set environment=staging \
+          --wait --timeout=10m
+
+    - name: Run smoke tests
+      run: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=regulensai -n regulensai-staging --timeout=300s
+        python scripts/smoke_tests.py --environment=staging
+
+    - name: Run performance tests
+      run: |
+        pytest tests/performance/ -v --environment=staging
+
+  # Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build, security-scan, deploy-staging]
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'production'
+    environment: production
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
+
+    - name: Blue-Green Deployment
+      run: |
+        # Get current deployment
+        CURRENT_COLOR=$(kubectl get deployment regulensai-api -n regulensai -o jsonpath='{.metadata.labels.color}' || echo "blue")
+        NEW_COLOR=$([ "$CURRENT_COLOR" = "blue" ] && echo "green" || echo "blue")
+        
+        echo "Current color: $CURRENT_COLOR"
+        echo "New color: $NEW_COLOR"
+        
+        # Deploy new version with new color
+        helm upgrade --install regulensai-$NEW_COLOR ./helm/regulensai \
+          --namespace regulensai \
+          --create-namespace \
+          --values ./helm/regulensai/values-production.yaml \
+          --set image.tag=${{ github.sha }} \
+          --set environment=production \
+          --set deployment.color=$NEW_COLOR \
+          --wait --timeout=15m
+
+    - name: Health check new deployment
+      run: |
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=regulensai,color=$NEW_COLOR -n regulensai --timeout=300s
+        python scripts/health_check.py --environment=production --color=$NEW_COLOR
+
+    - name: Switch traffic to new deployment
+      run: |
+        # Update service selector to point to new color
+        kubectl patch service regulensai-api -n regulensai -p '{"spec":{"selector":{"color":"'$NEW_COLOR'"}}}'
+        kubectl patch service regulensai-notifications -n regulensai -p '{"spec":{"selector":{"color":"'$NEW_COLOR'"}}}'
+        kubectl patch service regulensai-integrations -n regulensai -p '{"spec":{"selector":{"color":"'$NEW_COLOR'"}}}'
+
+    - name: Verify production deployment
+      run: |
+        sleep 30  # Allow traffic to stabilize
+        python scripts/production_verification.py --environment=production
+
+    - name: Clean up old deployment
+      run: |
+        # Remove old color deployment after successful verification
+        helm uninstall regulensai-$CURRENT_COLOR -n regulensai || true
+
+  # Rollback capability
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure() && github.ref == 'refs/heads/main'
+    needs: deploy-production
+    environment: production
+    steps:
+    - name: Rollback production deployment
+      run: |
+        helm rollback regulensai -n regulensai
+        kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=regulensai -n regulensai --timeout=300s
+
+  # Notification
+  notify:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: always()
+    steps:
+    - name: Notify deployment status
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow

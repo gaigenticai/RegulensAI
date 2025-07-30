@@ -1,0 +1,464 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: training-portal-metrics
+  namespace: regulensai
+  labels:
+    app: training-portal
+    monitoring: enabled
+spec:
+  selector:
+    matchLabels:
+      app: training-portal
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    honorLabels: true
+  - port: http
+    interval: 30s
+    path: /metrics/health
+    honorLabels: true
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: training-portal-alerts
+  namespace: regulensai
+  labels:
+    app: training-portal
+    monitoring: enabled
+spec:
+  groups:
+  - name: training-portal.rules
+    rules:
+    # High error rate alert
+    - alert: TrainingPortalHighErrorRate
+      expr: |
+        (
+          rate(training_portal_http_requests_total{status=~"5.."}[5m]) /
+          rate(training_portal_http_requests_total[5m])
+        ) > 0.05
+      for: 2m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal has high error rate"
+        description: "Training Portal error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-high-error-rate"
+    
+    # High response time alert
+    - alert: TrainingPortalHighLatency
+      expr: |
+        histogram_quantile(0.95, 
+          rate(training_portal_http_request_duration_seconds_bucket[5m])
+        ) > 2
+      for: 5m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal has high response time"
+        description: "Training Portal 95th percentile latency is {{ $value }}s for the last 5 minutes"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-high-latency"
+    
+    # Database connection issues
+    - alert: TrainingPortalDatabaseConnectionIssues
+      expr: training_portal_database_connections_failed_total > 10
+      for: 1m
+      labels:
+        severity: critical
+        service: training-portal
+      annotations:
+        summary: "Training Portal database connection failures"
+        description: "Training Portal has {{ $value }} database connection failures"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-db-issues"
+    
+    # Certificate generation failures
+    - alert: TrainingPortalCertificateGenerationFailures
+      expr: increase(training_portal_certificate_generation_failures_total[10m]) > 5
+      for: 2m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal certificate generation failures"
+        description: "Training Portal has {{ $value }} certificate generation failures in the last 10 minutes"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-cert-failures"
+    
+    # High memory usage
+    - alert: TrainingPortalHighMemoryUsage
+      expr: |
+        (
+          container_memory_working_set_bytes{pod=~"training-portal-.*"} /
+          container_spec_memory_limit_bytes{pod=~"training-portal-.*"}
+        ) > 0.9
+      for: 5m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal high memory usage"
+        description: "Training Portal pod {{ $labels.pod }} memory usage is {{ $value | humanizePercentage }}"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-high-memory"
+    
+    # Pod restart rate
+    - alert: TrainingPortalHighRestartRate
+      expr: increase(kube_pod_container_status_restarts_total{pod=~"training-portal-.*"}[1h]) > 3
+      for: 5m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal high restart rate"
+        description: "Training Portal pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-restarts"
+    
+    # Training completion rate drop
+    - alert: TrainingPortalLowCompletionRate
+      expr: |
+        (
+          rate(training_portal_module_completions_total[1h]) /
+          rate(training_portal_module_enrollments_total[1h])
+        ) < 0.3
+      for: 30m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal low completion rate"
+        description: "Training Portal completion rate is {{ $value | humanizePercentage }} for the last hour"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-low-completion"
+    
+    # Assessment failure rate
+    - alert: TrainingPortalHighAssessmentFailureRate
+      expr: |
+        (
+          rate(training_portal_assessment_failures_total[1h]) /
+          rate(training_portal_assessment_attempts_total[1h])
+        ) > 0.7
+      for: 15m
+      labels:
+        severity: warning
+        service: training-portal
+      annotations:
+        summary: "Training Portal high assessment failure rate"
+        description: "Training Portal assessment failure rate is {{ $value | humanizePercentage }} for the last hour"
+        runbook_url: "https://docs.regulensai.com/runbooks/training-portal-assessment-failures"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-portal-grafana-dashboard
+  namespace: regulensai
+  labels:
+    app: training-portal
+    grafana_dashboard: "1"
+data:
+  training-portal-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Training Portal Dashboard",
+        "tags": ["training", "portal", "regulensai"],
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(training_portal_http_requests_total[5m])",
+                "legendFormat": "{{method}} {{endpoint}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(training_portal_http_requests_total{status=~\"5..\"}[5m])",
+                "legendFormat": "5xx Errors"
+              },
+              {
+                "expr": "rate(training_portal_http_requests_total{status=~\"4..\"}[5m])",
+                "legendFormat": "4xx Errors"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Errors/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(training_portal_http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.50, rate(training_portal_http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Seconds"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "Active Users",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "training_portal_active_users",
+                "legendFormat": "Active Users"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 6,
+              "x": 12,
+              "y": 8
+            }
+          },
+          {
+            "id": 5,
+            "title": "Training Enrollments",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(training_portal_module_enrollments_total[1h])",
+                "legendFormat": "Enrollments/hour"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Enrollments/hour"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 6,
+            "title": "Training Completions",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(training_portal_module_completions_total[1h])",
+                "legendFormat": "Completions/hour"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Completions/hour"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 16
+            }
+          },
+          {
+            "id": 7,
+            "title": "Certificate Generation",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(training_portal_certificates_generated_total[1h])",
+                "legendFormat": "Certificates/hour"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Certificates/hour"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 24
+            }
+          },
+          {
+            "id": 8,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "training_portal_database_connections_active",
+                "legendFormat": "Active Connections"
+              },
+              {
+                "expr": "training_portal_database_connections_idle",
+                "legendFormat": "Idle Connections"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Connections"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 24
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: training-portal-metrics
+  namespace: regulensai
+  labels:
+    app: training-portal
+    monitoring: enabled
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    app: training-portal
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: training-portal-monitoring
+  namespace: regulensai
+spec:
+  podSelector:
+    matchLabels:
+      app: training-portal
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  - from:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9090
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-portal-log-config
+  namespace: regulensai
+  labels:
+    app: training-portal
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/training-portal/*.log
+        Parser            json
+        Tag               training-portal.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     50MB
+
+    [FILTER]
+        Name                kubernetes
+        Match               training-portal.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     training-portal.var.log.containers.
+        Merge_Log           On
+        Keep_Log            Off
+        K8S-Logging.Parser  On
+        K8S-Logging.Exclude On
+
+    [OUTPUT]
+        Name  es
+        Match training-portal.*
+        Host  elasticsearch.logging.svc.cluster.local
+        Port  9200
+        Index training-portal-logs
+        Type  _doc
+        Logstash_Format On
+        Logstash_Prefix training-portal
+        Retry_Limit False
+
+  parsers.conf: |
+    [PARSER]
+        Name   json
+        Format json
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On

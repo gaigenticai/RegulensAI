@@ -7,6 +7,8 @@ import asyncio
 import smtplib
 import ssl
 import uuid
+import json
+import base64
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Union
 from email.mime.text import MIMEText
@@ -15,6 +17,8 @@ from email.mime.base import MIMEBase
 from email import encoders
 import aiohttp
 import structlog
+from twilio.rest import Client as TwilioClient
+from twilio.base.exceptions import TwilioException
 
 from core_infra.config import get_settings
 from core_infra.database.connection import get_database
@@ -249,6 +253,152 @@ class SlackChannel(NotificationChannel):
         """Validate Slack configuration."""
         return self.webhook_url is not None
 
+class SMSChannel(NotificationChannel):
+    """SMS notification channel using Twilio."""
+
+    def __init__(self):
+        super().__init__("sms")
+        self.account_sid = getattr(settings, 'twilio_account_sid', None)
+        self.auth_token = getattr(settings, 'twilio_auth_token', None)
+        self.from_number = getattr(settings, 'twilio_from_number', None)
+        self.client = None
+
+        if self.account_sid and self.auth_token:
+            try:
+                self.client = TwilioClient(self.account_sid, self.auth_token)
+            except Exception as e:
+                logger.error(f"Failed to initialize Twilio client: {e}")
+
+    async def send(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Send SMS notification."""
+        try:
+            if not self.client:
+                raise ExternalServiceException("Twilio client not configured")
+
+            to_number = notification['to_number']
+            message_body = notification.get('message', notification.get('text_content', ''))
+
+            # Truncate message if too long (SMS limit is 1600 characters)
+            if len(message_body) > 1600:
+                message_body = message_body[:1597] + "..."
+
+            # Send SMS using Twilio
+            message = self.client.messages.create(
+                body=message_body,
+                from_=self.from_number,
+                to=to_number
+            )
+
+            logger.info(f"SMS sent successfully to {to_number}, SID: {message.sid}")
+            return {
+                'status': 'sent',
+                'channel': 'sms',
+                'recipient': to_number,
+                'message_sid': message.sid,
+                'sent_at': datetime.utcnow().isoformat()
+            }
+
+        except TwilioException as e:
+            logger.error(f"Twilio SMS sending failed: {e}")
+            return {
+                'status': 'failed',
+                'channel': 'sms',
+                'recipient': notification.get('to_number', 'unknown'),
+                'error': str(e),
+                'error_code': getattr(e, 'code', None),
+                'failed_at': datetime.utcnow().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"SMS sending failed: {e}")
+            return {
+                'status': 'failed',
+                'channel': 'sms',
+                'recipient': notification.get('to_number', 'unknown'),
+                'error': str(e),
+                'failed_at': datetime.utcnow().isoformat()
+            }
+
+    async def validate_config(self) -> bool:
+        """Validate SMS configuration."""
+        try:
+            if not self.client:
+                return False
+
+            # Test by fetching account info
+            account = self.client.api.accounts(self.account_sid).fetch()
+            return account.status == 'active'
+        except Exception as e:
+            logger.error(f"SMS configuration validation failed: {e}")
+            return False
+
+class TeamsChannel(NotificationChannel):
+    """Microsoft Teams notification channel."""
+
+    def __init__(self):
+        super().__init__("teams")
+        self.webhook_url = getattr(settings, 'teams_webhook_url', None)
+
+    async def send(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Send Teams notification."""
+        try:
+            if not self.webhook_url:
+                raise ExternalServiceException("Teams webhook URL not configured")
+
+            # Create Teams message card format
+            payload = {
+                "@type": "MessageCard",
+                "@context": "http://schema.org/extensions",
+                "themeColor": notification.get('color', '0076D7'),
+                "summary": notification.get('subject', 'Regulens AI Notification'),
+                "sections": [{
+                    "activityTitle": notification.get('title', 'Regulens AI'),
+                    "activitySubtitle": notification.get('subtitle', ''),
+                    "activityImage": notification.get('image_url', ''),
+                    "text": notification.get('text', ''),
+                    "markdown": True
+                }]
+            }
+
+            # Add action buttons if provided
+            if notification.get('actions'):
+                payload['potentialAction'] = notification['actions']
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.webhook_url,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status == 200:
+                        logger.info("Teams notification sent successfully")
+                        return {
+                            'status': 'sent',
+                            'channel': 'teams',
+                            'sent_at': datetime.utcnow().isoformat()
+                        }
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Teams notification failed: {error_text}")
+                        return {
+                            'status': 'failed',
+                            'channel': 'teams',
+                            'error': error_text,
+                            'failed_at': datetime.utcnow().isoformat()
+                        }
+
+        except Exception as e:
+            logger.error(f"Teams notification failed: {e}")
+            return {
+                'status': 'failed',
+                'channel': 'teams',
+                'error': str(e),
+                'failed_at': datetime.utcnow().isoformat()
+            }
+
+    async def validate_config(self) -> bool:
+        """Validate Teams configuration."""
+        return self.webhook_url is not None
+
 class NotificationDeliveryService:
     """Main notification delivery service with multiple channels and reliability features."""
     
@@ -256,7 +406,9 @@ class NotificationDeliveryService:
         self.channels = {
             'email': EmailChannel(),
             'webhook': WebhookChannel(),
-            'slack': SlackChannel()
+            'slack': SlackChannel(),
+            'sms': SMSChannel(),
+            'teams': TeamsChannel()
         }
         self.max_retries = 3
         self.retry_delays = [5, 15, 60]  # seconds
@@ -481,3 +633,203 @@ async def send_webhook(webhook_url: str, payload: Dict[str, Any]) -> Dict[str, A
         'payload': payload
     }
     return await notification_service.send_notification(notification)
+
+async def send_sms(to_number: str, message: str) -> Dict[str, Any]:
+    """Convenience function for sending SMS notifications."""
+    notification = {
+        'id': str(uuid.uuid4()),
+        'channels': ['sms'],
+        'to_number': to_number,
+        'message': message
+    }
+    return await notification_service.send_notification(notification)
+
+async def send_slack(channel: str, text: str, blocks: Optional[List[Dict]] = None) -> Dict[str, Any]:
+    """Convenience function for sending Slack notifications."""
+    notification = {
+        'id': str(uuid.uuid4()),
+        'channels': ['slack'],
+        'channel': channel,
+        'text': text,
+        'blocks': blocks
+    }
+    return await notification_service.send_notification(notification)
+
+async def send_teams(title: str, text: str, color: str = '0076D7',
+                    actions: Optional[List[Dict]] = None) -> Dict[str, Any]:
+    """Convenience function for sending Teams notifications."""
+    notification = {
+        'id': str(uuid.uuid4()),
+        'channels': ['teams'],
+        'title': title,
+        'text': text,
+        'color': color,
+        'actions': actions
+    }
+    return await notification_service.send_notification(notification)
+
+async def send_multi_channel(channels: List[str], subject: str, content: str,
+                           **kwargs) -> Dict[str, Any]:
+    """Convenience function for sending multi-channel notifications."""
+    notification = {
+        'id': str(uuid.uuid4()),
+        'channels': channels,
+        'subject': subject,
+        'content': content,
+        'text_content': content,
+        **kwargs
+    }
+    return await notification_service.send_notification(notification)
+
+async def send_bulk_notifications(
+    notifications: List[Dict[str, Any]],
+    batch_size: int = 50,
+    delay_between_batches: float = 1.0
+) -> Dict[str, Any]:
+    """
+    Send multiple notifications in batches with rate limiting.
+
+    Args:
+        notifications: List of notification dictionaries
+        batch_size: Number of notifications to send per batch
+        delay_between_batches: Delay in seconds between batches
+
+    Returns:
+        Bulk delivery report with overall statistics
+    """
+    try:
+        total_notifications = len(notifications)
+        successful_deliveries = 0
+        failed_deliveries = 0
+        batch_results = []
+
+        logger.info(f"Starting bulk notification delivery: {total_notifications} notifications")
+
+        # Process notifications in batches
+        for i in range(0, total_notifications, batch_size):
+            batch = notifications[i:i + batch_size]
+            batch_number = (i // batch_size) + 1
+
+            logger.info(f"Processing batch {batch_number}: {len(batch)} notifications")
+
+            # Send batch concurrently
+            batch_tasks = []
+            for notification in batch:
+                if 'id' not in notification:
+                    notification['id'] = str(uuid.uuid4())
+                task = notification_service.send_notification(notification)
+                batch_tasks.append(task)
+
+            # Wait for batch completion
+            batch_results_raw = await asyncio.gather(*batch_tasks, return_exceptions=True)
+
+            # Process batch results
+            batch_success = 0
+            batch_failed = 0
+
+            for result in batch_results_raw:
+                if isinstance(result, Exception):
+                    batch_failed += 1
+                    failed_deliveries += 1
+                elif result.get('overall_status') in ['delivered', 'partial']:
+                    batch_success += 1
+                    successful_deliveries += 1
+                else:
+                    batch_failed += 1
+                    failed_deliveries += 1
+
+            batch_results.append({
+                'batch_number': batch_number,
+                'batch_size': len(batch),
+                'successful': batch_success,
+                'failed': batch_failed,
+                'completion_time': datetime.utcnow().isoformat()
+            })
+
+            # Delay between batches (except for last batch)
+            if i + batch_size < total_notifications:
+                await asyncio.sleep(delay_between_batches)
+
+        # Calculate overall statistics
+        success_rate = (successful_deliveries / total_notifications) * 100 if total_notifications > 0 else 0
+
+        bulk_report = {
+            'status': 'completed',
+            'total_notifications': total_notifications,
+            'successful_deliveries': successful_deliveries,
+            'failed_deliveries': failed_deliveries,
+            'success_rate': round(success_rate, 2),
+            'batch_count': len(batch_results),
+            'batch_results': batch_results,
+            'completed_at': datetime.utcnow().isoformat()
+        }
+
+        logger.info(f"Bulk notification delivery completed: {success_rate:.1f}% success rate")
+        return bulk_report
+
+    except Exception as e:
+        logger.error(f"Bulk notification delivery failed: {e}")
+        return {
+            'status': 'failed',
+            'error': str(e),
+            'failed_at': datetime.utcnow().isoformat()
+        }
+
+async def send_templated_notification(
+    template_name: str,
+    template_variables: Dict[str, Any],
+    recipients: List[str],
+    channels: List[str] = None,
+    tenant_id: str = None,
+    language: str = 'en'
+) -> Dict[str, Any]:
+    """
+    Send notification using template engine with personalization.
+
+    Args:
+        template_name: Name of the template to use
+        template_variables: Variables for template rendering
+        recipients: List of recipient identifiers (user IDs or email addresses)
+        channels: Notification channels to use
+        tenant_id: Tenant ID for custom templates
+        language: Language for template rendering
+
+    Returns:
+        Delivery report
+    """
+    try:
+        from core_infra.services.notifications.template_engine import template_engine
+
+        # Render template
+        rendered_template = await template_engine.render_template(
+            template_name=template_name,
+            template_type='email',  # Default to email
+            language=language,
+            variables=template_variables,
+            tenant_id=tenant_id
+        )
+
+        # Create notifications for each recipient
+        notifications = []
+        for recipient in recipients:
+            notification = {
+                'id': str(uuid.uuid4()),
+                'channels': channels or ['email'],
+                'recipient': recipient,
+                'tenant_id': tenant_id,
+                'template_name': template_name,
+                'language': language,
+                **rendered_template
+            }
+            notifications.append(notification)
+
+        # Send bulk notifications
+        return await send_bulk_notifications(notifications)
+
+    except Exception as e:
+        logger.error(f"Templated notification delivery failed: {e}")
+        return {
+            'status': 'failed',
+            'error': str(e),
+            'failed_at': datetime.utcnow().isoformat()
+        }

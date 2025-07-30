@@ -1,0 +1,839 @@
+openapi: 3.0.3
+info:
+  title: RegulensAI API
+  description: |
+    Comprehensive API for RegulensAI compliance and risk management platform.
+    
+    ## Authentication
+    All API endpoints require authentication using Bearer tokens.
+    
+    ## Rate Limiting
+    API requests are rate limited to 1000 requests per minute per tenant.
+    
+    ## Error Handling
+    All errors follow RFC 7807 Problem Details format.
+    
+  version: 1.0.0
+  contact:
+    name: RegulensAI Support
+    email: support@regulensai.com
+    url: https://docs.regulensai.com
+  license:
+    name: Proprietary
+    url: https://regulensai.com/license
+
+servers:
+  - url: https://api.regulensai.com/v1
+    description: Production server
+  - url: https://staging-api.regulensai.com/v1
+    description: Staging server
+  - url: http://localhost:8000/api/v1
+    description: Development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  # External Data Integration Endpoints
+  /external-data/screen-entity:
+    post:
+      tags:
+        - External Data Integration
+      summary: Screen entity against external data sources
+      description: |
+        Screen an entity against multiple external data sources including sanctions lists,
+        market data providers, and credit bureaus.
+      operationId: screenEntity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntityScreeningRequest'
+            examples:
+              corporation_screening:
+                summary: Corporation screening example
+                value:
+                  entity_data:
+                    name: "Acme Corporation Ltd"
+                    entity_type: "corporation"
+                    address: "123 Business Street, London, UK"
+                    business_registration: "UK12345678"
+                  screening_type: "comprehensive"
+                  providers: ["ofac", "eu_sanctions", "un_sanctions", "refinitiv"]
+      responses:
+        '200':
+          description: Screening completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityScreeningResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /external-data/update-sources:
+    post:
+      tags:
+        - External Data Integration
+      summary: Update external data sources
+      description: Trigger update of external data sources with fresh data
+      operationId: updateDataSources
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                providers:
+                  type: array
+                  items:
+                    type: string
+                    enum: [ofac, eu_sanctions, un_sanctions, refinitiv, experian]
+                  description: List of providers to update
+                force_update:
+                  type: boolean
+                  default: false
+                  description: Force update even if data is fresh
+      responses:
+        '200':
+          description: Data sources updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataUpdateResponse'
+
+  # GRC Integration Endpoints
+  /integrations/grc/sync-risks:
+    post:
+      tags:
+        - GRC Integration
+      summary: Sync risk registers from GRC systems
+      description: |
+        Synchronize risk registers from connected GRC systems including
+        RSA Archer, ServiceNow GRC, and MetricStream.
+      operationId: syncRiskRegisters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                system_types:
+                  type: array
+                  items:
+                    type: string
+                    enum: [archer, servicenow, metricstream]
+                  description: GRC systems to sync from
+                sync_mode:
+                  type: string
+                  enum: [incremental, full]
+                  default: incremental
+                  description: Synchronization mode
+                date_filter:
+                  type: string
+                  format: date-time
+                  description: Only sync records modified after this date
+      responses:
+        '200':
+          description: Risk sync completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskSyncResponse'
+
+  /integrations/grc/push-updates:
+    post:
+      tags:
+        - GRC Integration
+      summary: Push compliance updates to GRC systems
+      description: Push compliance findings and updates to connected GRC systems
+      operationId: pushComplianceUpdates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                updates:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ComplianceUpdate'
+                target_systems:
+                  type: array
+                  items:
+                    type: string
+                    enum: [archer, servicenow, metricstream]
+      responses:
+        '200':
+          description: Updates pushed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatePushResponse'
+
+  # Notification Endpoints
+  /notifications/send:
+    post:
+      tags:
+        - Notifications
+      summary: Send notification
+      description: Send a single notification using specified template and channels
+      operationId: sendNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationRequest'
+            examples:
+              risk_alert:
+                summary: Risk alert notification
+                value:
+                  template_name: "high_risk_alert"
+                  recipients: ["risk.manager@company.com", "compliance@company.com"]
+                  context:
+                    risk_title: "Operational Risk - System Downtime"
+                    risk_level: "HIGH"
+                    due_date: "2024-02-15"
+                    owner: "IT Operations"
+                  priority: "high"
+                  channels: ["email", "webhook"]
+      responses:
+        '200':
+          description: Notification sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+
+  /notifications/send-bulk:
+    post:
+      tags:
+        - Notifications
+      summary: Send bulk notifications
+      description: Send multiple notifications in batch for improved performance
+      operationId: sendBulkNotifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notifications:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/NotificationRequest'
+                  maxItems: 1000
+                  description: Array of notifications to send (max 1000)
+                batch_options:
+                  type: object
+                  properties:
+                    batch_size:
+                      type: integer
+                      default: 100
+                      minimum: 1
+                      maximum: 500
+                    max_concurrent_batches:
+                      type: integer
+                      default: 5
+                      minimum: 1
+                      maximum: 20
+      responses:
+        '200':
+          description: Bulk notifications processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkNotificationResponse'
+
+  /notifications/templates:
+    get:
+      tags:
+        - Notifications
+      summary: List notification templates
+      description: Get list of available notification templates
+      operationId: listNotificationTemplates
+      parameters:
+        - name: template_type
+          in: query
+          schema:
+            type: string
+            enum: [email, sms, webhook]
+          description: Filter by template type
+        - name: language
+          in: query
+          schema:
+            type: string
+            default: en
+          description: Template language
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NotificationTemplate'
+
+    post:
+      tags:
+        - Notifications
+      summary: Create notification template
+      description: Create a new notification template
+      operationId: createNotificationTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationTemplateCreate'
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTemplate'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    EntityScreeningRequest:
+      type: object
+      required:
+        - entity_data
+        - screening_type
+      properties:
+        entity_data:
+          $ref: '#/components/schemas/EntityData'
+        screening_type:
+          type: string
+          enum: [basic, comprehensive, custom]
+          description: Type of screening to perform
+        providers:
+          type: array
+          items:
+            type: string
+            enum: [ofac, eu_sanctions, un_sanctions, refinitiv, experian]
+          description: Specific providers to use (optional)
+        screening_options:
+          type: object
+          properties:
+            include_historical:
+              type: boolean
+              default: false
+            fuzzy_matching:
+              type: boolean
+              default: true
+            match_threshold:
+              type: number
+              minimum: 0.0
+              maximum: 1.0
+              default: 0.8
+
+    EntityData:
+      type: object
+      required:
+        - name
+        - entity_type
+      properties:
+        name:
+          type: string
+          description: Entity name
+          example: "Acme Corporation Ltd"
+        entity_type:
+          type: string
+          enum: [person, corporation, organization, vessel, aircraft]
+          description: Type of entity
+        address:
+          type: string
+          description: Entity address
+          example: "123 Business Street, London, UK"
+        date_of_birth:
+          type: string
+          format: date
+          description: Date of birth (for persons)
+        business_registration:
+          type: string
+          description: Business registration number
+        passport_number:
+          type: string
+          description: Passport number (for persons)
+        ticker_symbol:
+          type: string
+          description: Stock ticker symbol
+        isin:
+          type: string
+          description: International Securities Identification Number
+        lei:
+          type: string
+          description: Legal Entity Identifier
+
+    EntityScreeningResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        entity_name:
+          type: string
+        screening_id:
+          type: string
+          format: uuid
+        screening_date:
+          type: string
+          format: date-time
+        total_providers:
+          type: integer
+        successful_screenings:
+          type: integer
+        failed_screenings:
+          type: integer
+        total_matches:
+          type: integer
+        overall_risk_score:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+        screening_result:
+          type: string
+          enum: [clear, possible_match, potential_match, hit]
+        provider_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderScreeningResult'
+
+    ProviderScreeningResult:
+      type: object
+      properties:
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [success, error, timeout]
+        screening_date:
+          type: string
+          format: date-time
+        screening_id:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScreeningMatch'
+        data_version:
+          type: string
+        response_time_ms:
+          type: integer
+
+    ScreeningMatch:
+      type: object
+      properties:
+        match_id:
+          type: string
+        match_strength:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+        matched_name:
+          type: string
+        list_name:
+          type: string
+        match_type:
+          type: string
+          enum: [exact, fuzzy, phonetic, alias]
+        additional_info:
+          type: object
+          additionalProperties: true
+
+    NotificationRequest:
+      type: object
+      required:
+        - template_name
+        - recipients
+        - context
+        - priority
+        - channels
+      properties:
+        template_name:
+          type: string
+          description: Name of the notification template to use
+        recipients:
+          type: array
+          items:
+            type: string
+          description: List of recipient email addresses or phone numbers
+        context:
+          type: object
+          additionalProperties: true
+          description: Template context variables
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+          description: Notification priority
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, sms, webhook]
+          description: Delivery channels to use
+        delivery_options:
+          type: object
+          properties:
+            schedule_time:
+              type: string
+              format: date-time
+              description: Schedule notification for future delivery
+            retry_attempts:
+              type: integer
+              minimum: 0
+              maximum: 5
+              default: 3
+
+    NotificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        notification_id:
+          type: string
+          format: uuid
+        delivery_status:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [sent, failed, pending, scheduled]
+        delivery_timestamp:
+          type: string
+          format: date-time
+        error_details:
+          type: array
+          items:
+            type: object
+            properties:
+              channel:
+                type: string
+              error:
+                type: string
+
+    BulkNotificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        total_notifications:
+          type: integer
+        successful_deliveries:
+          type: integer
+        failed_deliveries:
+          type: integer
+        processing_time_ms:
+          type: integer
+        batch_results:
+          type: array
+          items:
+            type: object
+            properties:
+              batch_id:
+                type: string
+              notifications_processed:
+                type: integer
+              successful_deliveries:
+                type: integer
+              failed_deliveries:
+                type: integer
+
+    NotificationTemplate:
+      type: object
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        template_type:
+          type: string
+          enum: [email, sms, webhook]
+        language:
+          type: string
+        subject:
+          type: string
+        content:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+        created_date:
+          type: string
+          format: date-time
+        last_modified:
+          type: string
+          format: date-time
+
+    NotificationTemplateCreate:
+      type: object
+      required:
+        - name
+        - template_type
+        - subject
+        - content
+      properties:
+        name:
+          type: string
+        template_type:
+          type: string
+          enum: [email, sms, webhook]
+        language:
+          type: string
+          default: en
+        subject:
+          type: string
+        content:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+
+    DataUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        update_timestamp:
+          type: string
+          format: date-time
+        update_results:
+          type: array
+          items:
+            type: object
+            properties:
+              provider:
+                type: string
+              status:
+                type: string
+                enum: [success, error, skipped]
+              total_processed:
+                type: integer
+              new_records:
+                type: integer
+              updated_records:
+                type: integer
+              removed_records:
+                type: integer
+              data_version:
+                type: string
+              error_message:
+                type: string
+
+    RiskSyncResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        sync_timestamp:
+          type: string
+          format: date-time
+        total_risks_processed:
+          type: integer
+        total_risks_created:
+          type: integer
+        total_risks_updated:
+          type: integer
+        total_conflicts:
+          type: integer
+        system_results:
+          type: array
+          items:
+            type: object
+            properties:
+              system_name:
+                type: string
+              system_type:
+                type: string
+              total_processed:
+                type: integer
+              created:
+                type: integer
+              updated:
+                type: integer
+              conflicts:
+                type: integer
+              sync_duration_ms:
+                type: integer
+
+    ComplianceUpdate:
+      type: object
+      required:
+        - type
+        - title
+        - description
+      properties:
+        type:
+          type: string
+          enum: [risk, control, incident, finding]
+        title:
+          type: string
+        description:
+          type: string
+        risk_level:
+          type: string
+          enum: [low, medium, high, critical]
+        category:
+          type: string
+        owner:
+          type: string
+        due_date:
+          type: string
+          format: date
+        external_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdatePushResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [success, partial_success, error]
+        push_timestamp:
+          type: string
+          format: date-time
+        total_updates:
+          type: integer
+        successful_pushes:
+          type: integer
+        failed_pushes:
+          type: integer
+        system_results:
+          type: array
+          items:
+            type: object
+            properties:
+              system_name:
+                type: string
+              system_type:
+                type: string
+              updates_pushed:
+                type: integer
+              updates_failed:
+                type: integer
+              ticket_ids:
+                type: array
+                items:
+                  type: string
+
+    Error:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+        trace_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://regulensai.com/errors/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Invalid entity data: missing required field 'name'"
+            instance: "/api/v1/external-data/screen-entity"
+            timestamp: "2024-01-29T10:30:00Z"
+            trace_id: "abc123def456"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://regulensai.com/errors/unauthorized"
+            title: "Unauthorized"
+            status: 401
+            detail: "Invalid or expired authentication token"
+            instance: "/api/v1/external-data/screen-entity"
+            timestamp: "2024-01-29T10:30:00Z"
+            trace_id: "abc123def456"
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://regulensai.com/errors/rate-limited"
+            title: "Rate Limit Exceeded"
+            status: 429
+            detail: "Rate limit of 1000 requests per minute exceeded"
+            instance: "/api/v1/external-data/screen-entity"
+            timestamp: "2024-01-29T10:30:00Z"
+            trace_id: "abc123def456"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "https://regulensai.com/errors/internal-error"
+            title: "Internal Server Error"
+            status: 500
+            detail: "An unexpected error occurred while processing the request"
+            instance: "/api/v1/external-data/screen-entity"
+            timestamp: "2024-01-29T10:30:00Z"
+            trace_id: "abc123def456"
+
+tags:
+  - name: External Data Integration
+    description: Operations for screening entities against external data sources
+  - name: GRC Integration
+    description: Operations for integrating with GRC systems
+  - name: Notifications
+    description: Operations for sending notifications and managing templates

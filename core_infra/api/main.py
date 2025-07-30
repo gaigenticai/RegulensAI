@@ -45,6 +45,7 @@ from core_infra.api.routes import (
 from core_infra.api.routes.ui_portals import router as ui_portals_router
 from core_infra.api.routes.security_testing import router as security_testing_router
 from core_infra.api.routes.phase6_ai import include_phase6_routes
+from core_infra.api.training_portal.routes import router as training_portal_router
 from core_infra.config import get_settings
 from core_infra.exceptions import (
     RegulensBaseException,
@@ -333,6 +334,9 @@ app.include_router(ui_portals_router, tags=["UI Portals"])
 
 # Security Testing (Phase 5)
 app.include_router(security_testing_router, tags=["Security Testing"])
+
+# Training Portal
+app.include_router(training_portal_router, prefix=f"/{settings.api_version}", tags=["Training Portal"])
 
 # Phase 6 Advanced AI & Automation
 include_phase6_routes(app)

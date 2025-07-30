@@ -243,24 +243,169 @@ class DeepLearningEngine:
         model_config: Dict[str, Any],
         framework: str = "tensorflow"
     ) -> Any:
-        """Build a neural network model"""
+        """Build a production-ready neural network model"""
         try:
             if not HAS_DL_LIBRARIES:
-                logger.info(f"Building simulated {framework} model")
+                logger.warning("Deep learning libraries not available, using mock model")
                 return MockModel()
-            
+
             architecture_type = ArchitectureType(model_config.get("architecture", "feedforward"))
-            
+
             if framework.lower() == "tensorflow":
                 return await self._build_tensorflow_model(input_shape, model_type, model_config, architecture_type)
             elif framework.lower() == "pytorch":
                 return await self._build_pytorch_model(input_shape, model_type, model_config, architecture_type)
             else:
                 raise ValueError(f"Unsupported framework: {framework}")
-                
+
         except Exception as e:
             logger.error(f"Model building failed: {str(e)}")
             raise
+
+    async def _build_tensorflow_model(
+        self,
+        input_shape: Tuple[int, ...],
+        model_type: str,
+        model_config: Dict[str, Any],
+        architecture_type: ArchitectureType
+    ) -> tf.keras.Model:
+        """Build TensorFlow/Keras model with production configurations."""
+        try:
+            if architecture_type == ArchitectureType.FEEDFORWARD:
+                return await self._build_tf_feedforward(input_shape, model_config)
+            elif architecture_type == ArchitectureType.CNN:
+                return await self._build_tf_cnn(input_shape, model_config)
+            elif architecture_type == ArchitectureType.RNN:
+                return await self._build_tf_rnn(input_shape, model_config)
+            elif architecture_type == ArchitectureType.TRANSFORMER:
+                return await self._build_tf_transformer(input_shape, model_config)
+            elif architecture_type == ArchitectureType.AUTOENCODER:
+                return await self._build_tf_autoencoder(input_shape, model_config)
+            else:
+                raise ValueError(f"Unsupported TensorFlow architecture: {architecture_type}")
+
+        except Exception as e:
+            logger.error(f"TensorFlow model building failed: {e}")
+            raise
+
+    async def _build_tf_feedforward(self, input_shape: Tuple[int, ...], config: Dict[str, Any]) -> tf.keras.Model:
+        """Build production-ready feedforward neural network."""
+        model = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=input_shape)
+        ])
+
+        # Hidden layers with proper regularization
+        hidden_layers = config.get('hidden_layers', [128, 64, 32])
+        dropout_rate = config.get('dropout_rate', 0.3)
+        activation = config.get('activation', 'relu')
+        use_batch_norm = config.get('use_batch_norm', True)
+        l2_reg = config.get('l2_regularization', 0.001)
+
+        for i, units in enumerate(hidden_layers):
+            # Dense layer with L2 regularization
+            model.add(tf.keras.layers.Dense(
+                units,
+                activation=None,
+                kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
+                kernel_initializer='he_normal',
+                name=f'dense_{i+1}'
+            ))
+
+            # Batch normalization
+            if use_batch_norm:
+                model.add(tf.keras.layers.BatchNormalization(name=f'batch_norm_{i+1}'))
+
+            # Activation
+            model.add(tf.keras.layers.Activation(activation, name=f'activation_{i+1}'))
+
+            # Dropout for regularization
+            if dropout_rate > 0:
+                model.add(tf.keras.layers.Dropout(dropout_rate, name=f'dropout_{i+1}'))
+
+        # Output layer
+        output_units = config.get('output_units', 1)
+        output_activation = config.get('output_activation', 'sigmoid')
+
+        model.add(tf.keras.layers.Dense(
+            output_units,
+            activation=output_activation,
+            kernel_initializer='glorot_normal',
+            name='output'
+        ))
+
+        return model
+
+    async def _build_tf_cnn(self, input_shape: Tuple[int, ...], config: Dict[str, Any]) -> tf.keras.Model:
+        """Build production-ready Convolutional Neural Network."""
+        model = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=input_shape)
+        ])
+
+        # Convolutional layers
+        conv_layers = config.get('conv_layers', [
+            {'filters': 32, 'kernel_size': 3, 'strides': 1},
+            {'filters': 64, 'kernel_size': 3, 'strides': 1},
+            {'filters': 128, 'kernel_size': 3, 'strides': 1}
+        ])
+
+        dropout_rate = config.get('dropout_rate', 0.25)
+        use_batch_norm = config.get('use_batch_norm', True)
+
+        for i, layer_config in enumerate(conv_layers):
+            # Convolutional layer
+            model.add(tf.keras.layers.Conv2D(
+                filters=layer_config['filters'],
+                kernel_size=layer_config['kernel_size'],
+                strides=layer_config.get('strides', 1),
+                padding='same',
+                kernel_initializer='he_normal',
+                name=f'conv2d_{i+1}'
+            ))
+
+            # Batch normalization
+            if use_batch_norm:
+                model.add(tf.keras.layers.BatchNormalization(name=f'conv_batch_norm_{i+1}'))
+
+            # Activation
+            model.add(tf.keras.layers.ReLU(name=f'conv_relu_{i+1}'))
+
+            # Max pooling
+            if layer_config.get('use_pooling', True):
+                model.add(tf.keras.layers.MaxPooling2D(
+                    pool_size=layer_config.get('pool_size', 2),
+                    name=f'max_pool_{i+1}'
+                ))
+
+            # Dropout
+            if dropout_rate > 0:
+                model.add(tf.keras.layers.Dropout(dropout_rate, name=f'conv_dropout_{i+1}'))
+
+        # Flatten and dense layers
+        model.add(tf.keras.layers.GlobalAveragePooling2D(name='global_avg_pool'))
+
+        # Dense layers
+        dense_layers = config.get('dense_layers', [256, 128])
+        for i, units in enumerate(dense_layers):
+            model.add(tf.keras.layers.Dense(
+                units,
+                activation='relu',
+                kernel_regularizer=tf.keras.regularizers.l2(0.001),
+                name=f'dense_{i+1}'
+            ))
+            if dropout_rate > 0:
+                model.add(tf.keras.layers.Dropout(dropout_rate, name=f'dense_dropout_{i+1}'))
+
+        # Output layer
+        output_units = config.get('output_units', 1)
+        output_activation = config.get('output_activation', 'sigmoid')
+
+        model.add(tf.keras.layers.Dense(
+            output_units,
+            activation=output_activation,
+            name='output'
+        ))
+
+        return model
     
     async def _build_tensorflow_model(
         self,
@@ -448,42 +593,84 @@ class DeepLearningEngine:
         """Build feedforward neural network in PyTorch"""
         
         class FeedForwardNet(nn.Module):
-            def __init__(self, input_size, hidden_layers, num_classes, dropout_rate):
+            def __init__(self, input_size, hidden_layers, num_classes, dropout_rate, use_batch_norm=True):
                 super(FeedForwardNet, self).__init__()
-                
-                layers_list = []
+
+                self.layers = nn.ModuleList()
+                self.batch_norms = nn.ModuleList() if use_batch_norm else None
+                self.dropouts = nn.ModuleList()
+
                 prev_size = input_size
-                
-                for units in hidden_layers:
-                    layers_list.append(nn.Linear(prev_size, units))
-                    layers_list.append(nn.ReLU())
-                    if dropout_rate > 0:
-                        layers_list.append(nn.Dropout(dropout_rate))
+
+                # Hidden layers with proper initialization
+                for i, units in enumerate(hidden_layers):
+                    # Linear layer with He initialization
+                    linear = nn.Linear(prev_size, units)
+                    nn.init.he_normal_(linear.weight)
+                    nn.init.zeros_(linear.bias)
+                    self.layers.append(linear)
+
+                    # Batch normalization
+                    if use_batch_norm:
+                        self.batch_norms.append(nn.BatchNorm1d(units))
+
+                    # Dropout
+                    self.dropouts.append(nn.Dropout(dropout_rate))
+
                     prev_size = units
-                
-                # Output layer
-                layers_list.append(nn.Linear(prev_size, num_classes))
-                
-                if model_type == "classification" and num_classes == 1:
-                    layers_list.append(nn.Sigmoid())
-                elif model_type == "classification" and num_classes > 1:
-                    layers_list.append(nn.Softmax(dim=1))
-                
-                self.network = nn.Sequential(*layers_list)
-            
+
+                # Output layer with Xavier initialization
+                output_layer = nn.Linear(prev_size, num_classes)
+                nn.init.xavier_normal_(output_layer.weight)
+                nn.init.zeros_(output_layer.bias)
+                self.layers.append(output_layer)
+
+                self.activation = nn.ReLU()
+                self.model_type = model_type
+                self.num_classes = num_classes
+
             def forward(self, x):
-                return self.network(x)
+                # Flatten input if needed
+                if len(x.shape) > 2:
+                    x = x.view(x.size(0), -1)
+
+                # Hidden layers
+                for i in range(len(self.layers) - 1):
+                    x = self.layers[i](x)
+
+                    if self.batch_norms:
+                        x = self.batch_norms[i](x)
+
+                    x = self.activation(x)
+                    x = self.dropouts[i](x)
+
+                # Output layer
+                x = self.layers[-1](x)
+
+                # Apply output activation based on task
+                if self.model_type == "classification":
+                    if self.num_classes == 1:
+                        x = torch.sigmoid(x)
+                    else:
+                        x = torch.softmax(x, dim=1)
+
+                return x
         
-        input_size = input_shape[0]
+        # Calculate input size
+        input_size = 1
+        for dim in input_shape:
+            input_size *= dim
+
         hidden_layers = config.get("hidden_layers", [128, 64, 32])
         dropout_rate = config.get("dropout_rate", 0.3)
-        
+        use_batch_norm = config.get("use_batch_norm", True)
+
         if model_type == "classification":
             num_classes = config.get("num_classes", 1)
         else:
             num_classes = 1
-        
-        return FeedForwardNet(input_size, hidden_layers, num_classes, dropout_rate)
+
+        return FeedForwardNet(input_size, hidden_layers, num_classes, dropout_rate, use_batch_norm)
     
     def _build_cnn_model_pytorch(
         self,
