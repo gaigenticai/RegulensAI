@@ -504,7 +504,7 @@ class DisasterRecoveryManager:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.info(f"Task cancelled: {task}")
 
         dr_logger = await get_centralized_logger("dr_manager")
         await dr_logger.info("Disaster Recovery Manager stopped", category=LogCategory.SYSTEM)

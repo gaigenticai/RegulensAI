@@ -51,34 +51,7 @@ if HAS_AUTOML_LIBRARIES:
         os.environ['OMP_NUM_THREADS'] = '4'  # Limit threads for stability
 
     except ImportError:
-        HAS_XGBOOST = False
-        class MockXGB:
-            class XGBClassifier:
-                def __init__(self, *args, **kwargs):
-                    self.classes_ = [0, 1]
-                def fit(self, X, y, **kwargs):
-                    return self
-                def predict(self, X):
-                    return np.random.randint(0, 2, len(X))
-                def predict_proba(self, X):
-                    return np.random.random((len(X), 2))
-                def get_params(self, deep=True):
-                    return {}
-                def set_params(self, **params):
-                    return self
-
-            class XGBRegressor:
-                def __init__(self, *args, **kwargs):
-                    pass
-                def fit(self, X, y, **kwargs):
-                    return self
-                def predict(self, X):
-                    return np.random.random(len(X))
-                def get_params(self, deep=True):
-                    return {}
-                def set_params(self, **params):
-                    return self
-        xgb = MockXGB()
+        raise ImportError("XGBoost is required for production. Install via requirements.txt.")
 
     # Try to import LightGBM with production configuration
     try:
@@ -89,34 +62,7 @@ if HAS_AUTOML_LIBRARIES:
         lgb.register_logger(lambda msg: None)  # Suppress verbose logging
 
     except ImportError:
-        HAS_LIGHTGBM = False
-        class MockLGB:
-            class LGBMClassifier:
-                def __init__(self, *args, **kwargs):
-                    self.classes_ = [0, 1]
-                def fit(self, X, y, **kwargs):
-                    return self
-                def predict(self, X):
-                    return np.random.randint(0, 2, len(X))
-                def predict_proba(self, X):
-                    return np.random.random((len(X), 2))
-                def get_params(self, deep=True):
-                    return {}
-                def set_params(self, **params):
-                    return self
-
-            class LGBMRegressor:
-                def __init__(self, *args, **kwargs):
-                    pass
-                def fit(self, X, y, **kwargs):
-                    return self
-                def predict(self, X):
-                    return np.random.random(len(X))
-                def get_params(self, deep=True):
-                    return {}
-                def set_params(self, **params):
-                    return self
-        lgb = MockLGB()
+        raise ImportError("LightGBM is required for production. Install via requirements.txt.")
 else:
     # If sklearn is not available, create all mocks
     HAS_XGBOOST = False

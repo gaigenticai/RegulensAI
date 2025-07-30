@@ -1053,37 +1053,45 @@ class TaskManager:
     
     async def _send_assignment_notification(self, task: ComplianceTask, assignment: TaskAssignment):
         """Send notification about task assignment."""
-        # Implementation would send notifications via configured channels
-        pass
+        message = f"Task {task.id} assigned to you: {task.description}"
+        await notification_service.send('Task Assigned', message, assignment.assignee_id)
     
     async def _send_status_change_notification(self, task: ComplianceTask, action: str):
         """Send notification about status change."""
-        pass
+        message = f"Task {task.id} status changed to {task.status.value} by {action}"
+        for subscriber in self.task_subscriptions.get(task.id, []):
+            await notification_service.send('Task Status Update', message, subscriber)
     
     async def _send_completion_notification(self, task: ComplianceTask):
         """Send notification about task completion."""
-        pass
+        message = f"Task {task.id} completed: {task.description}"
+        await notification_service.send('Task Completed', message, task.created_by)
     
     async def _send_progress_notification(self, task: ComplianceTask):
         """Send notification about progress update."""
-        pass
+        message = f"Task {task.id} progress updated to {task.progress_percentage}%"
+        for subscriber in self.task_subscriptions.get(task.id, []):
+            await notification_service.send('Task Progress Update', message, subscriber)
     
     async def _send_mention_notifications(self, task: ComplianceTask, comment: TaskComment, mentioned_users: List[str]):
         """Send notifications for user mentions."""
-        pass
+        message = f"You were mentioned in comment on task {task.id}: {comment.text}"
+        for user in mentioned_users:
+            await notification_service.send('Mention Notification', message, user)
     
     async def _send_escalation_notification(self, task: ComplianceTask, escalate_to: str, reason: str):
         """Send escalation notification."""
-        pass
+        message = f"Task {task.id} escalated to you: {reason}"
+        await notification_service.send('Task Escalated', message, escalate_to)
     
     async def _send_overdue_notification(self, task: ComplianceTask):
         """Send overdue task notification."""
-        pass
+        message = f"Task {task.id} is overdue: {task.description}"
+        await notification_service.send('Task Overdue', message, task.assignment.assignee_id)
     
     async def _notify_workflow_task_completion(self, workflow_id: str, task_id: str):
         """Notify workflow engine about task completion."""
-        # This would integrate with the workflow engine
-        pass
+        await workflow_engine.notify_task_completion(workflow_id, task_id)
     
     # ========================================================================
     # PUBLIC API METHODS

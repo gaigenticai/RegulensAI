@@ -501,5 +501,5 @@ async def _send_test_completion_notification(result, user_id: str):
 
 async def _send_full_test_completion_notification(results: Dict, user_id: str):
     """Send notification for full test completion."""
-    # Placeholder for notification system integration
-    pass
+    summary = f"Full DR test completed with {len(results)} components tested."
+    await notification_service.send('Full DR Test Completed', summary, user_id)

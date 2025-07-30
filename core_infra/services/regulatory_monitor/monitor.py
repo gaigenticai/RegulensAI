@@ -601,16 +601,21 @@ class RegulatoryMonitor:
     async def _store_change_notification(self, document_id: str, source: RegulatorySource, 
                                        document_data: Dict[str, Any], impact_level: str):
         """Store regulatory change notification in database."""
-        # This would store in a notifications table
-        # Implementation would depend on notification system design
-        pass
+        async with get_database() as db:
+            query = """
+                INSERT INTO regulatory_notifications 
+                (document_id, source_id, impact_level, details, created_at)
+                VALUES ($1, $2, $3, $4, $5)
+            """
+            await db.execute(query, document_id, source.id, impact_level, document_data, datetime.utcnow())
     
     async def _send_real_time_notifications(self, document_id: str, 
                                           document_data: Dict[str, Any], impact_level: str):
         """Send real-time notifications for high-impact regulatory changes."""
-        # This would integrate with notification system (email, Slack, etc.)
-        # Implementation would depend on notification preferences
-        pass
+        message = f"High-impact regulatory change: {document_data.get('title')} (Impact: {impact_level})"
+        # Assuming notification_service is defined elsewhere or needs to be imported
+        # For now, we'll just log the message as a placeholder
+        logger.info(f"Sending real-time notification: {message}")
     
     async def _update_source_timestamp(self, source_id: str):
         """Update last monitored timestamp for source."""

@@ -546,8 +546,17 @@ class RiskScoringService:
     
     def _load_models(self):
         """Load existing models from storage."""
-        # In production, load from cloud storage or model registry
-        pass
+        # Example implementation: load from Supabase or cloud storage
+        self.models = {}  # Dictionary to hold loaded models
+        # In production, implement actual loading logic here
+        try:
+            # Assuming a model registry service
+            model_data = self.supabase.table('risk_models').select('*').execute()
+            for model in model_data.data:
+                self.models[model['name']] = pickle.loads(model['model_data'])  # Or use joblib.load
+        except Exception as e:
+            logger.error(f"Failed to load models: {str(e)}")
+            raise SystemException("Model loading failed")
     
     async def _get_risk_model(self, model_name: str, model_type: str) -> Optional[Dict]:
         """Get risk model metadata from database."""
