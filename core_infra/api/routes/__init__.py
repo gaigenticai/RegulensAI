@@ -12,6 +12,7 @@ from core_infra.api.routes.aml import router as aml_router
 from core_infra.api.routes.tasks import router as tasks_router
 from core_infra.api.routes.reports import router as reports_router
 from core_infra.api.routes.ai import router as ai_router
+from core_infra.api.routes.operations import router as operations_router
 
 # Health check router (simplified)
 from fastapi import APIRouter
@@ -24,7 +25,7 @@ async def health_check():
 
 __all__ = [
     "auth_router",
-    "users_router", 
+    "users_router",
     "tenants_router",
     "regulatory_router",
     "compliance_router",
@@ -32,5 +33,6 @@ __all__ = [
     "tasks_router",
     "reports_router",
     "ai_router",
+    "operations_router",
     "health_router"
 ]

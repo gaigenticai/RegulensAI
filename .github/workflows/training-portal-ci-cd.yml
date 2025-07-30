@@ -1,0 +1,421 @@
+name: Training Portal CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'core_infra/api/training_portal/**'
+      - 'core_infra/ui/training_portal/**'
+      - 'core_infra/services/training_*'
+      - 'core_infra/security/training_*'
+      - 'tests/integration/test_training_*'
+      - 'deployment/training-portal/**'
+      - '.github/workflows/training-portal-ci-cd.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'core_infra/api/training_portal/**'
+      - 'core_infra/ui/training_portal/**'
+      - 'core_infra/services/training_*'
+      - 'core_infra/security/training_*'
+      - 'tests/integration/test_training_*'
+      - 'deployment/training-portal/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/training-api
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/training-frontend
+
+jobs:
+  # ============================================================================
+  # SECURITY SCANNING
+  # ============================================================================
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run Bandit security linter
+      run: |
+        pip install bandit[toml]
+        bandit -r core_infra/api/training_portal/ core_infra/services/training_* core_infra/security/training_* -f json -o bandit-report.json
+      continue-on-error: true
+
+    - name: Upload security scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-scan-results
+        path: |
+          trivy-results.sarif
+          bandit-report.json
+
+  # ============================================================================
+  # BACKEND TESTING
+  # ============================================================================
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_training_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Set up test environment
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_training_db
+        REDIS_URL: redis://localhost:6379/0
+        SECRET_KEY: test_secret_key_for_ci
+        JWT_SECRET_KEY: test_jwt_secret_key_for_ci
+      run: |
+        python -m pytest tests/unit/test_training_* -v --cov=core_infra/api/training_portal --cov=core_infra/services/training_* --cov-report=xml --cov-report=html
+
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_training_db
+        REDIS_URL: redis://localhost:6379/0
+        SECRET_KEY: test_secret_key_for_ci
+        JWT_SECRET_KEY: test_jwt_secret_key_for_ci
+      run: |
+        python -m pytest tests/integration/test_training_* -v --maxfail=5
+
+    - name: Run security tests
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_training_db
+        REDIS_URL: redis://localhost:6379/0
+        SECRET_KEY: test_secret_key_for_ci
+        JWT_SECRET_KEY: test_jwt_secret_key_for_ci
+      run: |
+        python -m pytest tests/security/test_training_* -v
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: backend
+        name: training-portal-backend
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: backend-test-results
+        path: |
+          htmlcov/
+          coverage.xml
+          pytest-report.xml
+
+  # ============================================================================
+  # FRONTEND TESTING
+  # ============================================================================
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'core_infra/ui/package-lock.json'
+
+    - name: Install dependencies
+      working-directory: core_infra/ui
+      run: npm ci
+
+    - name: Run linting
+      working-directory: core_infra/ui
+      run: npm run lint
+
+    - name: Run unit tests
+      working-directory: core_infra/ui
+      run: npm run test:coverage
+
+    - name: Run E2E tests
+      working-directory: core_infra/ui
+      run: |
+        npm run build
+        npm run test:e2e:ci
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./core_infra/ui/coverage/lcov.info
+        flags: frontend
+        name: training-portal-frontend
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: frontend-test-results
+        path: |
+          core_infra/ui/coverage/
+          core_infra/ui/test-results/
+
+  # ============================================================================
+  # BUILD AND PUSH IMAGES
+  # ============================================================================
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [security-scan, backend-tests, frontend-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata for API
+      id: meta-api
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push API image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: deployment/training-portal/Dockerfile.api
+        push: true
+        tags: ${{ steps.meta-api.outputs.tags }}
+        labels: ${{ steps.meta-api.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Extract metadata for Frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: deployment/training-portal/Dockerfile.frontend
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # ============================================================================
+  # DEPLOY TO STAGING
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+    - name: Deploy to staging
+      run: |
+        # Update image tags in deployment manifests
+        sed -i "s|regulens/training-api:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:develop|g" deployment/k8s/training-portal-deployment.yaml
+        sed -i "s|regulens/training-frontend:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:develop|g" deployment/k8s/training-portal-deployment.yaml
+        
+        # Apply manifests
+        kubectl apply -f deployment/k8s/training-portal-deployment.yaml
+        
+        # Wait for rollout
+        kubectl rollout status deployment/training-api-deployment -n regulens-training --timeout=600s
+        kubectl rollout status deployment/training-frontend-deployment -n regulens-training --timeout=600s
+
+    - name: Run smoke tests
+      run: |
+        # Wait for services to be ready
+        sleep 30
+        
+        # Get service URL
+        STAGING_URL=$(kubectl get ingress training-portal-ingress -n regulens-training -o jsonpath='{.spec.rules[0].host}')
+        
+        # Run basic health checks
+        curl -f "https://${STAGING_URL}/api/v1/training/health" || exit 1
+        curl -f "https://${STAGING_URL}/health" || exit 1
+
+  # ============================================================================
+  # DEPLOY TO PRODUCTION
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure kubectl
+      uses: azure/k8s-set-context@v3
+      with:
+        method: kubeconfig
+        kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+
+    - name: Deploy to production
+      run: |
+        # Update image tags in deployment manifests
+        sed -i "s|regulens/training-api:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:main|g" deployment/k8s/training-portal-deployment.yaml
+        sed -i "s|regulens/training-frontend:latest|${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:main|g" deployment/k8s/training-portal-deployment.yaml
+        
+        # Apply manifests with blue-green deployment strategy
+        kubectl apply -f deployment/k8s/training-portal-deployment.yaml
+        
+        # Wait for rollout
+        kubectl rollout status deployment/training-api-deployment -n regulens-training --timeout=600s
+        kubectl rollout status deployment/training-frontend-deployment -n regulens-training --timeout=600s
+
+    - name: Run production smoke tests
+      run: |
+        # Wait for services to be ready
+        sleep 60
+        
+        # Get service URL
+        PROD_URL=$(kubectl get ingress training-portal-ingress -n regulens-training -o jsonpath='{.spec.rules[0].host}')
+        
+        # Run comprehensive health checks
+        curl -f "https://${PROD_URL}/api/v1/training/health" || exit 1
+        curl -f "https://${PROD_URL}/health" || exit 1
+        
+        # Test critical endpoints
+        curl -f "https://${PROD_URL}/api/v1/training/modules" -H "Authorization: Bearer ${{ secrets.TEST_API_TOKEN }}" || exit 1
+
+    - name: Notify deployment success
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        channel: '#deployments'
+        text: 'Training Portal successfully deployed to production! 🚀'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ============================================================================
+  # PERFORMANCE TESTING
+  # ============================================================================
+  performance-tests:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run load tests
+      run: |
+        # Install k6
+        sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+        # Run performance tests
+        k6 run tests/performance/training-portal-load-test.js
+
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-test-results
+        path: performance-results.json

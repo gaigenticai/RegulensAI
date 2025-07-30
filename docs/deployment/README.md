@@ -1,8 +1,15 @@
-# Regulens AI - Deployment Guide
+# RegulensAI Integrated Operations Center
 
-## Overview
+## 🚀 Overview
 
-This guide provides comprehensive instructions for deploying Regulens AI in production environments. The platform supports multiple deployment strategies including Docker, Kubernetes, and cloud-native deployments.
+The RegulensAI Operations Center provides a comprehensive web-based interface for deployment, monitoring, and system operations. This integrated approach ensures that operational procedures are always up-to-date, accessible, and properly version-controlled alongside the application code.
+
+**🎯 Key Benefits:**
+- **Always up-to-date** - Documentation is version-controlled with the application
+- **Interactive workflows** - Step-by-step guides with real-time validation
+- **Integrated monitoring** - Real-time system status and health checks
+- **Role-based access** - Secure operations with proper permissions
+- **Searchable troubleshooting** - Quick problem resolution with executable solutions
 
 ## Table of Contents
 

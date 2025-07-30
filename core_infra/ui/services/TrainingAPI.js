@@ -15,27 +15,25 @@ class TrainingAPIService {
   // ============================================================================
 
   /**
-   * Get all available training modules
+   * Get all available training modules with pagination
    */
-  async getModules(filters = {}) {
+  async getModules(filters = {}, page = 1, size = 20) {
     try {
       const params = new URLSearchParams();
-      
+
+      // Pagination
+      params.append('page', page);
+      params.append('size', size);
+
+      // Filters
       if (filters.category && filters.category !== 'all') {
         params.append('category', filters.category);
       }
-      if (filters.difficulty && filters.difficulty !== 'all') {
-        params.append('difficulty', filters.difficulty);
+      if (filters.difficulty_level && filters.difficulty_level !== 'all') {
+        params.append('difficulty_level', filters.difficulty_level);
       }
-      if (filters.contentType && filters.contentType !== 'all') {
-        params.append('content_type', filters.contentType);
-      }
-      if (filters.mandatory && filters.mandatory !== 'all') {
-        params.append('mandatory', filters.mandatory === 'mandatory');
-      }
-      if (filters.sortBy) {
-        params.append('sort_by', filters.sortBy);
-        params.append('sort_order', filters.sortOrder || 'asc');
+      if (filters.search) {
+        params.append('search', filters.search);
       }
 
       const response = await apiClient.get(`${this.baseURL}/modules?${params}`);
@@ -86,23 +84,35 @@ class TrainingAPIService {
   }
 
   /**
-   * Search training modules
+   * Search training modules using new search endpoint
    */
-  async searchModules(query, filters = {}) {
+  async searchModules(query, filters = {}, limit = 20) {
     try {
-      const params = new URLSearchParams();
-      params.append('q', query);
-      
-      Object.keys(filters).forEach(key => {
-        if (filters[key] && filters[key] !== 'all') {
-          params.append(key, filters[key]);
-        }
-      });
+      const searchRequest = {
+        query: query,
+        category: filters.category !== 'all' ? filters.category : null,
+        difficulty_level: filters.difficulty_level !== 'all' ? filters.difficulty_level : null,
+        content_type: filters.content_type !== 'all' ? filters.content_type : null,
+        limit: limit
+      };
 
-      const response = await apiClient.get(`${this.baseURL}/modules/search?${params}`);
+      const response = await apiClient.post(`${this.baseURL}/search`, searchRequest);
       return response.data;
     } catch (error) {
-      console.error('Failed to search modules:', error);
+      console.error('Failed to search training modules:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get training recommendations for current user
+   */
+  async getRecommendations(limit = 10) {
+    try {
+      const response = await apiClient.get(`${this.baseURL}/recommendations?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get training recommendations:', error);
       throw error;
     }
   }
@@ -112,11 +122,15 @@ class TrainingAPIService {
   // ============================================================================
 
   /**
-   * Get user enrollments
+   * Get current user's enrollments
    */
-  async getUserEnrollments(userId) {
+  async getUserEnrollments(status = null) {
     try {
-      const response = await apiClient.get(`${this.baseURL}/enrollments?user_id=${userId}`);
+      const params = new URLSearchParams();
+      if (status) {
+        params.append('status', status);
+      }
+      const response = await apiClient.get(`${this.baseURL}/enrollments?${params}`);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch user enrollments:', error);
@@ -127,12 +141,14 @@ class TrainingAPIService {
   /**
    * Enroll user in a module
    */
-  async enrollInModule(moduleId, targetCompletionDate = null) {
+  async enrollInModule(moduleId, targetCompletionDate = null, notes = null) {
     try {
-      const response = await apiClient.post(`${this.baseURL}/enrollments`, {
+      const enrollmentData = {
         module_id: moduleId,
-        target_completion_date: targetCompletionDate
-      });
+        target_completion_date: targetCompletionDate,
+        notes: notes
+      };
+      const response = await apiClient.post(`${this.baseURL}/enrollments`, enrollmentData);
       return response.data;
     } catch (error) {
       console.error(`Failed to enroll in module ${moduleId}:`, error);
@@ -230,14 +246,17 @@ class TrainingAPIService {
   /**
    * Submit assessment answers
    */
-  async submitAssessmentAnswers(attemptId, answers) {
+  async submitAssessment(assessmentId, answers, timeSpentMinutes = null) {
     try {
-      const response = await apiClient.post(`${this.baseURL}/assessment-attempts/${attemptId}/submit`, {
-        answers: answers
-      });
+      const submission = {
+        assessment_id: assessmentId,
+        answers: answers,
+        time_spent_minutes: timeSpentMinutes
+      };
+      const response = await apiClient.post(`${this.baseURL}/assessments/${assessmentId}/submit`, submission);
       return response.data;
     } catch (error) {
-      console.error(`Failed to submit assessment answers:`, error);
+      console.error(`Failed to submit assessment:`, error);
       throw error;
     }
   }
@@ -552,6 +571,97 @@ class TrainingAPIService {
       return response.data;
     } catch (error) {
       console.error('Failed to check achievements:', error);
+      throw error;
+    }
+  }
+
+  // ============================================================================
+  // ENHANCED ANALYTICS
+  // ============================================================================
+
+  /**
+   * Get training dashboard analytics
+   */
+  async getDashboardAnalytics() {
+    try {
+      const response = await apiClient.get(`${this.baseURL}/analytics/dashboard`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch dashboard analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user analytics
+   */
+  async getUserAnalytics(userId = null) {
+    try {
+      const endpoint = userId ?
+        `${this.baseURL}/analytics/user/${userId}` :
+        `${this.baseURL}/analytics/user/me`;
+      const response = await apiClient.get(endpoint);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Track analytics event
+   */
+  async trackEvent(eventType, eventData = {}, moduleId = null, sectionId = null, sessionId = null) {
+    try {
+      const trackingData = {
+        event_type: eventType,
+        data: eventData,
+        module_id: moduleId,
+        section_id: sectionId,
+        session_id: sessionId || this.generateSessionId()
+      };
+      const response = await apiClient.post(`${this.baseURL}/analytics/track`, trackingData);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to track analytics event:', error);
+      // Don't throw error for analytics tracking failures
+      return { success: false };
+    }
+  }
+
+  /**
+   * Generate a session ID for analytics tracking
+   */
+  generateSessionId() {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // ============================================================================
+  // ENHANCED CERTIFICATES
+  // ============================================================================
+
+  /**
+   * Download a certificate with proper file handling
+   */
+  async downloadCertificate(certificateId) {
+    try {
+      const response = await apiClient.get(`${this.baseURL}/certificates/${certificateId}/download`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to download certificate ${certificateId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a certificate
+   */
+  async verifyCertificate(verificationCode) {
+    try {
+      const response = await apiClient.get(`${this.baseURL}/certificates/verify/${verificationCode}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to verify certificate ${verificationCode}:`, error);
       throw error;
     }
   }

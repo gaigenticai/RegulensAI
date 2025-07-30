@@ -1,16 +1,187 @@
 """
-Regulens AI - Configuration Management
-Enterprise-grade configuration with environment variable validation.
+RegulensAI - Enhanced Configuration Management
+Enterprise-grade configuration with comprehensive validation and error handling.
 """
 
 import os
+import re
+import json
+import yaml
+import asyncio
+import asyncpg
+import redis
+from pathlib import Path
 from functools import lru_cache
-from typing import List, Optional, Dict, Any
-from pydantic import Field, SecretStr, field_validator
+from typing import List, Optional, Dict, Any, Union, Tuple
+from urllib.parse import urlparse
+from pydantic import Field, SecretStr, field_validator, ValidationError, model_validator
 from pydantic_settings import BaseSettings
 import structlog
+import requests
+from datetime import datetime
 
 logger = structlog.get_logger(__name__)
+
+
+class ConfigurationError(Exception):
+    """Custom exception for configuration validation errors."""
+
+    def __init__(self, message: str, field: str = None, suggestions: List[str] = None):
+        self.field = field
+        self.suggestions = suggestions or []
+        super().__init__(message)
+
+
+class DatabaseSchemaValidator:
+    """Validates database schema compatibility and requirements."""
+
+    REQUIRED_TABLES = {
+        # Core tables from Phase 1
+        'tenants', 'users', 'customers', 'transactions', 'compliance_programs',
+        'compliance_tasks', 'regulatory_documents', 'audit_logs', 'notifications',
+        'performance_metrics', 'system_configurations',
+
+        # Phase 2 additions
+        'scheduled_tasks', 'task_executions', 'document_embeddings',
+        'document_similarity', 'regulatory_changes', 'regulatory_impact_assessments',
+        'workflow_executions', 'workflow_steps',
+
+        # Phase 3 additions (Training Portal)
+        'training_modules', 'training_sections', 'training_assessments',
+        'training_enrollments', 'training_progress', 'training_certificates',
+        'training_section_progress', 'training_assessment_attempts',
+
+        # Operations and monitoring tables
+        'system_health_checks', 'backup_logs', 'file_uploads'
+    }
+
+    REQUIRED_INDEXES = {
+        'idx_users_email', 'idx_users_tenant_id', 'idx_customers_tenant_id',
+        'idx_transactions_customer_id', 'idx_compliance_tasks_status',
+        'idx_audit_logs_tenant_id', 'idx_regulatory_documents_jurisdiction',
+        'idx_training_enrollments_user_id', 'idx_training_progress_enrollment_id'
+    }
+
+    REQUIRED_CONSTRAINTS = {
+        'chk_user_status', 'chk_transaction_status', 'chk_compliance_task_status',
+        'chk_training_module_category', 'chk_training_module_difficulty'
+    }
+
+    @staticmethod
+    async def validate_schema(database_url: str) -> Tuple[bool, List[str]]:
+        """Validate database schema against requirements."""
+        errors = []
+
+        try:
+            conn = await asyncpg.connect(database_url)
+
+            try:
+                # Check required tables
+                existing_tables = await conn.fetch("""
+                    SELECT table_name FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                """)
+                existing_table_names = {row['table_name'] for row in existing_tables}
+
+                missing_tables = DatabaseSchemaValidator.REQUIRED_TABLES - existing_table_names
+                if missing_tables:
+                    errors.append(f"Missing required tables: {', '.join(sorted(missing_tables))}")
+
+                # Check required indexes
+                existing_indexes = await conn.fetch("""
+                    SELECT indexname FROM pg_indexes
+                    WHERE schemaname = 'public'
+                """)
+                existing_index_names = {row['indexname'] for row in existing_indexes}
+
+                missing_indexes = DatabaseSchemaValidator.REQUIRED_INDEXES - existing_index_names
+                if missing_indexes:
+                    errors.append(f"Missing required indexes: {', '.join(sorted(missing_indexes))}")
+
+                # Check database extensions
+                extensions = await conn.fetch("SELECT extname FROM pg_extension")
+                extension_names = {row['extname'] for row in extensions}
+
+                required_extensions = {'uuid-ossp', 'pg_trgm', 'btree_gin'}
+                missing_extensions = required_extensions - extension_names
+                if missing_extensions:
+                    errors.append(f"Missing required extensions: {', '.join(sorted(missing_extensions))}")
+
+                # Check database version
+                version_info = await conn.fetchval("SELECT version()")
+                if not re.search(r'PostgreSQL (1[4-9]|[2-9]\d)', version_info):
+                    errors.append("PostgreSQL version 14+ is required")
+
+                return len(errors) == 0, errors
+
+            finally:
+                await conn.close()
+
+        except Exception as e:
+            errors.append(f"Database connection failed: {str(e)}")
+            return False, errors
+
+
+class ExternalServiceValidator:
+    """Validates external service connectivity and credentials."""
+
+    @staticmethod
+    async def validate_redis_connection(redis_url: str, password: Optional[str] = None) -> Tuple[bool, str]:
+        """Validate Redis connection."""
+        try:
+            if password:
+                # Parse URL and add password
+                parsed = urlparse(redis_url)
+                redis_url = f"redis://:{password}@{parsed.hostname}:{parsed.port}{parsed.path}"
+
+            r = redis.from_url(redis_url, socket_timeout=5)
+            r.ping()
+            return True, "Redis connection successful"
+        except Exception as e:
+            return False, f"Redis connection failed: {str(e)}"
+
+    @staticmethod
+    def validate_smtp_config(host: str, port: int, username: str = None, password: str = None) -> Tuple[bool, str]:
+        """Validate SMTP configuration."""
+        try:
+            import smtplib
+
+            server = smtplib.SMTP(host, port, timeout=10)
+            server.starttls()
+
+            if username and password:
+                server.login(username, password)
+
+            server.quit()
+            return True, "SMTP configuration valid"
+        except Exception as e:
+            return False, f"SMTP validation failed: {str(e)}"
+
+    @staticmethod
+    def validate_api_endpoint(url: str, api_key: str = None, timeout: int = 10) -> Tuple[bool, str]:
+        """Validate external API endpoint."""
+        try:
+            headers = {}
+            if api_key:
+                headers['Authorization'] = f'Bearer {api_key}'
+
+            response = requests.get(url, headers=headers, timeout=timeout)
+
+            if response.status_code == 200:
+                return True, "API endpoint accessible"
+            elif response.status_code == 401:
+                return False, "API authentication failed - check credentials"
+            elif response.status_code == 403:
+                return False, "API access forbidden - check permissions"
+            else:
+                return False, f"API returned status {response.status_code}"
+
+        except requests.exceptions.Timeout:
+            return False, "API endpoint timeout - check network connectivity"
+        except requests.exceptions.ConnectionError:
+            return False, "API endpoint unreachable - check URL and network"
+        except Exception as e:
+            return False, f"API validation failed: {str(e)}"
 
 
 class Settings(BaseSettings):
@@ -284,15 +455,51 @@ class Settings(BaseSettings):
     currency_default: str = Field(default="USD", env="CURRENCY_DEFAULT")
     
     # ============================================================================
-    # VALIDATORS
+    # ENHANCED VALIDATORS
     # ============================================================================
-    
+
     @field_validator('app_environment')
     @classmethod
     def validate_environment(cls, v):
         allowed_environments = ['development', 'staging', 'production', 'testing']
         if v not in allowed_environments:
-            raise ValueError(f'Environment must be one of: {allowed_environments}')
+            raise ConfigurationError(
+                f'Environment must be one of: {allowed_environments}',
+                field='app_environment',
+                suggestions=[f"Set APP_ENVIRONMENT to one of: {', '.join(allowed_environments)}"]
+            )
+        return v
+
+    @field_validator('jwt_secret_key')
+    @classmethod
+    def validate_jwt_secret_key(cls, v):
+        secret = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if len(secret) < 32:
+            raise ConfigurationError(
+                'JWT secret key must be at least 32 characters long for security',
+                field='jwt_secret_key',
+                suggestions=[
+                    "Generate a secure key: openssl rand -hex 32",
+                    "Use a password manager to generate a strong secret",
+                    "Ensure the key is stored securely in environment variables"
+                ]
+            )
+        return v
+
+    @field_validator('encryption_key')
+    @classmethod
+    def validate_encryption_key(cls, v):
+        key = v.get_secret_value() if isinstance(v, SecretStr) else v
+        if len(key) != 44:  # Base64 encoded 32-byte key
+            raise ConfigurationError(
+                'Encryption key must be a 44-character base64-encoded 32-byte key',
+                field='encryption_key',
+                suggestions=[
+                    "Generate a key: python -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())'",
+                    "Use Fernet.generate_key() from cryptography library",
+                    "Ensure the key is properly base64 encoded"
+                ]
+            )
         return v
     
     @field_validator('log_level')
@@ -323,7 +530,55 @@ class Settings(BaseSettings):
     @classmethod
     def validate_database_url(cls, v):
         if not v.startswith(('postgresql://', 'postgres://')):
-            raise ValueError('Database URL must be a PostgreSQL connection string')
+            raise ConfigurationError(
+                'Database URL must be a PostgreSQL connection string',
+                field='database_url',
+                suggestions=[
+                    "Format: postgresql://username:password@host:port/database",
+                    "Example: postgresql://user:pass@localhost:5432/regulensai",
+                    "Ensure PostgreSQL is running and accessible"
+                ]
+            )
+
+        # Parse and validate URL components
+        try:
+            parsed = urlparse(v)
+            if not parsed.hostname:
+                raise ConfigurationError(
+                    'Database URL must include hostname',
+                    field='database_url',
+                    suggestions=["Include hostname in URL: postgresql://user:pass@hostname:5432/db"]
+                )
+
+            if not parsed.path or parsed.path == '/':
+                raise ConfigurationError(
+                    'Database URL must include database name',
+                    field='database_url',
+                    suggestions=["Include database name: postgresql://user:pass@host:5432/database_name"]
+                )
+
+        except Exception as e:
+            raise ConfigurationError(
+                f'Invalid database URL format: {str(e)}',
+                field='database_url',
+                suggestions=["Check URL format: postgresql://username:password@host:port/database"]
+            )
+
+        return v
+
+    @field_validator('supabase_url')
+    @classmethod
+    def validate_supabase_url(cls, v):
+        if not v.startswith('https://') or not v.endswith('.supabase.co'):
+            raise ConfigurationError(
+                'Supabase URL must be a valid Supabase project URL',
+                field='supabase_url',
+                suggestions=[
+                    "Format: https://your-project.supabase.co",
+                    "Get URL from Supabase dashboard > Settings > API",
+                    "Ensure project is active and accessible"
+                ]
+            )
         return v
     
     @field_validator('redis_url')
@@ -351,8 +606,122 @@ class Settings(BaseSettings):
     @classmethod
     def validate_aml_threshold(cls, v):
         if v <= 0:
-            raise ValueError('AML threshold amount must be positive')
+            raise ConfigurationError(
+                'AML threshold amount must be positive',
+                field='aml_threshold_amount',
+                suggestions=["Set to a reasonable amount like 10000.0 for $10,000 threshold"]
+            )
         return v
+
+    @field_validator('smtp_host', 'smtp_port')
+    @classmethod
+    def validate_smtp_config(cls, v, info):
+        if info.field_name == 'smtp_host' and v:
+            # Basic hostname validation
+            if not re.match(r'^[a-zA-Z0-9.-]+$', v):
+                raise ConfigurationError(
+                    'SMTP host must be a valid hostname',
+                    field='smtp_host',
+                    suggestions=["Example: smtp.gmail.com, mail.company.com"]
+                )
+
+        if info.field_name == 'smtp_port' and v:
+            if not 1 <= v <= 65535:
+                raise ConfigurationError(
+                    'SMTP port must be between 1 and 65535',
+                    field='smtp_port',
+                    suggestions=["Common ports: 587 (TLS), 465 (SSL), 25 (plain)"]
+                )
+
+        return v
+
+    @model_validator(mode='after')
+    def validate_environment_specific_requirements(self):
+        """Validate environment-specific configuration requirements."""
+
+        # Production environment validations
+        if self.app_environment == 'production':
+            self._validate_production_requirements()
+
+        # Staging environment validations
+        elif self.app_environment == 'staging':
+            self._validate_staging_requirements()
+
+        # Development environment validations
+        elif self.app_environment == 'development':
+            self._validate_development_requirements()
+
+        return self
+
+    def _validate_production_requirements(self):
+        """Validate production-specific requirements."""
+        errors = []
+
+        # Security requirements
+        if self.debug:
+            errors.append("Debug mode must be disabled in production")
+
+        if self.jwt_access_token_expire_minutes > 60:
+            errors.append("JWT token expiration should be ≤ 60 minutes in production")
+
+        if self.bcrypt_rounds < 12:
+            errors.append("Bcrypt rounds should be ≥ 12 in production for security")
+
+        # Monitoring requirements
+        if not self.metrics_enabled:
+            errors.append("Metrics must be enabled in production")
+
+        if not self.jaeger_enabled:
+            errors.append("Distributed tracing should be enabled in production")
+
+        # Backup requirements
+        if not self.backup_enabled:
+            errors.append("Database backups must be enabled in production")
+
+        if not self.disaster_recovery_enabled:
+            errors.append("Disaster recovery must be enabled in production")
+
+        # SSL/TLS requirements
+        if 'localhost' in self.database_url or '127.0.0.1' in self.database_url:
+            errors.append("Production database should not use localhost")
+
+        if errors:
+            raise ConfigurationError(
+                f"Production environment validation failed: {'; '.join(errors)}",
+                field='app_environment',
+                suggestions=[
+                    "Review production security checklist",
+                    "Enable all monitoring and backup features",
+                    "Use secure external services, not localhost"
+                ]
+            )
+
+    def _validate_staging_requirements(self):
+        """Validate staging-specific requirements."""
+        errors = []
+
+        # Staging should mirror production but allow some flexibility
+        if not self.metrics_enabled:
+            errors.append("Metrics should be enabled in staging for testing")
+
+        if self.backup_frequency_hours > 24:
+            errors.append("Backup frequency should be ≤ 24 hours in staging")
+
+        if errors:
+            raise ConfigurationError(
+                f"Staging environment validation failed: {'; '.join(errors)}",
+                field='app_environment',
+                suggestions=["Staging should closely mirror production configuration"]
+            )
+
+    def _validate_development_requirements(self):
+        """Validate development-specific requirements."""
+        # Development is more flexible, but still has some requirements
+        if self.database_pool_size > 10:
+            logger.warning("Large database pool size in development may be unnecessary")
+
+        if not self.hot_reload_enabled:
+            logger.info("Hot reload disabled - enable for better development experience")
     
     # ============================================================================
     # COMPUTED PROPERTIES
@@ -418,6 +787,178 @@ class Settings(BaseSettings):
             }
     
     # ============================================================================
+    # COMPREHENSIVE VALIDATION METHODS
+    # ============================================================================
+
+    async def validate_all_configurations(self) -> Dict[str, Any]:
+        """
+        Perform comprehensive validation of all configuration settings.
+        Returns validation results with detailed error information.
+        """
+        validation_results = {
+            'overall_status': 'pending',
+            'timestamp': datetime.utcnow().isoformat(),
+            'environment': self.app_environment,
+            'validations': {}
+        }
+
+        # Database validation
+        validation_results['validations']['database'] = await self._validate_database_config()
+
+        # Redis validation
+        validation_results['validations']['redis'] = await self._validate_redis_config()
+
+        # External services validation
+        validation_results['validations']['external_services'] = await self._validate_external_services()
+
+        # Security validation
+        validation_results['validations']['security'] = self._validate_security_config()
+
+        # File system validation
+        validation_results['validations']['filesystem'] = self._validate_filesystem_config()
+
+        # AI/ML services validation
+        validation_results['validations']['ai_services'] = await self._validate_ai_services()
+
+        # Determine overall status
+        all_passed = all(
+            result.get('status') == 'passed'
+            for result in validation_results['validations'].values()
+        )
+        validation_results['overall_status'] = 'passed' if all_passed else 'failed'
+
+        return validation_results
+
+    async def _validate_database_config(self) -> Dict[str, Any]:
+        """Validate database configuration and connectivity."""
+        result = {
+            'status': 'pending',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        try:
+            # Test database connectivity
+            result['checks']['connectivity'] = await self._test_database_connectivity()
+
+            # Validate schema compatibility
+            schema_valid, schema_errors = await DatabaseSchemaValidator.validate_schema(self.database_url)
+            result['checks']['schema'] = {
+                'status': 'passed' if schema_valid else 'failed',
+                'errors': schema_errors
+            }
+
+            # Check database configuration
+            result['checks']['configuration'] = self._validate_database_settings()
+
+            # Determine overall database validation status
+            all_db_checks_passed = all(
+                check.get('status') == 'passed'
+                for check in result['checks'].values()
+            )
+            result['status'] = 'passed' if all_db_checks_passed else 'failed'
+
+        except Exception as e:
+            result['status'] = 'failed'
+            result['errors'].append(f"Database validation failed: {str(e)}")
+
+        return result
+
+    async def _test_database_connectivity(self) -> Dict[str, Any]:
+        """Test database connectivity and basic operations."""
+        try:
+            conn = await asyncpg.connect(self.database_url)
+
+            try:
+                # Test basic query
+                await conn.fetchval("SELECT 1")
+
+                # Test transaction capability
+                async with conn.transaction():
+                    await conn.fetchval("SELECT NOW()")
+
+                return {
+                    'status': 'passed',
+                    'message': 'Database connectivity successful'
+                }
+
+            finally:
+                await conn.close()
+
+        except Exception as e:
+            return {
+                'status': 'failed',
+                'message': f"Database connectivity failed: {str(e)}",
+                'suggestions': [
+                    "Check database server is running",
+                    "Verify connection string format",
+                    "Ensure network connectivity to database host",
+                    "Validate database credentials"
+                ]
+            }
+
+    def _validate_database_settings(self) -> Dict[str, Any]:
+        """Validate database pool and connection settings."""
+        warnings = []
+
+        # Check pool size settings
+        if self.database_pool_size > 50:
+            warnings.append("Large database pool size may consume excessive resources")
+
+        if self.database_pool_timeout < 10:
+            warnings.append("Short pool timeout may cause connection failures under load")
+
+        if self.database_pool_recycle < 1800:  # 30 minutes
+            warnings.append("Short connection recycle time may impact performance")
+
+        return {
+            'status': 'passed',
+            'warnings': warnings,
+            'recommendations': [
+                f"Pool size: {self.database_pool_size} (recommended: 10-30 for most applications)",
+                f"Pool timeout: {self.database_pool_timeout}s (recommended: 30s+)",
+                f"Connection recycle: {self.database_pool_recycle}s (recommended: 3600s+)"
+            ]
+        }
+
+    async def _validate_redis_config(self) -> Dict[str, Any]:
+        """Validate Redis configuration and connectivity."""
+        result = {
+            'status': 'pending',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        try:
+            # Test Redis connectivity
+            redis_valid, redis_message = await ExternalServiceValidator.validate_redis_connection(
+                self.redis_url,
+                self.redis_password.get_secret_value() if self.redis_password else None
+            )
+
+            result['checks']['connectivity'] = {
+                'status': 'passed' if redis_valid else 'failed',
+                'message': redis_message
+            }
+
+            # Validate Redis settings
+            if self.redis_max_connections > 100:
+                result['warnings'].append("High Redis max connections may impact performance")
+
+            if self.cache_default_timeout < 60:
+                result['warnings'].append("Short cache timeout may reduce cache effectiveness")
+
+            result['status'] = 'passed' if redis_valid else 'failed'
+
+        except Exception as e:
+            result['status'] = 'failed'
+            result['errors'].append(f"Redis validation failed: {str(e)}")
+
+        return result
+
+    # ============================================================================
     # CONFIGURATION METHODS
     # ============================================================================
     
@@ -438,10 +979,224 @@ class Settings(BaseSettings):
                 return urlunparse(parsed._replace(netloc=netloc))
         return self.redis_url
     
+    async def _validate_external_services(self) -> Dict[str, Any]:
+        """Validate external service configurations."""
+        result = {
+            'status': 'passed',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        # SMTP validation
+        if self.notification_email_enabled and self.smtp_username and self.smtp_password:
+            smtp_valid, smtp_message = ExternalServiceValidator.validate_smtp_config(
+                self.smtp_host, self.smtp_port,
+                self.smtp_username, self.smtp_password.get_secret_value()
+            )
+            result['checks']['smtp'] = {
+                'status': 'passed' if smtp_valid else 'failed',
+                'message': smtp_message
+            }
+
+        # API endpoints validation
+        api_checks = {}
+
+        # OpenAI API
+        if self.openai_api_key:
+            openai_valid, openai_message = ExternalServiceValidator.validate_api_endpoint(
+                "https://api.openai.com/v1/models",
+                self.openai_api_key.get_secret_value()
+            )
+            api_checks['openai'] = {
+                'status': 'passed' if openai_valid else 'failed',
+                'message': openai_message
+            }
+
+        # Claude API
+        if self.claude_api_key:
+            claude_valid, claude_message = ExternalServiceValidator.validate_api_endpoint(
+                "https://api.anthropic.com/v1/messages",
+                self.claude_api_key.get_secret_value()
+            )
+            api_checks['claude'] = {
+                'status': 'passed' if claude_valid else 'failed',
+                'message': claude_message
+            }
+
+        result['checks']['api_endpoints'] = api_checks
+
+        # Check if any critical services failed
+        failed_checks = [
+            check for check in result['checks'].values()
+            if isinstance(check, dict) and check.get('status') == 'failed'
+        ]
+
+        if failed_checks:
+            result['status'] = 'failed'
+            result['errors'].append(f"{len(failed_checks)} external service(s) failed validation")
+
+        return result
+
+    def _validate_security_config(self) -> Dict[str, Any]:
+        """Validate security configuration settings."""
+        result = {
+            'status': 'passed',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        # JWT configuration
+        jwt_checks = []
+
+        if self.jwt_access_token_expire_minutes > 120:
+            jwt_checks.append("JWT access token expiration is very long (>2 hours)")
+
+        if self.jwt_refresh_token_expire_days > 90:
+            jwt_checks.append("JWT refresh token expiration is very long (>90 days)")
+
+        if self.jwt_algorithm.startswith('HS') and len(self.jwt_secret_key.get_secret_value()) < 64:
+            jwt_checks.append("JWT secret key should be longer for HMAC algorithms")
+
+        result['checks']['jwt'] = {
+            'status': 'passed' if not jwt_checks else 'warning',
+            'issues': jwt_checks
+        }
+
+        # Encryption settings
+        encryption_checks = []
+
+        if self.bcrypt_rounds < 10:
+            encryption_checks.append("Bcrypt rounds too low for security")
+        elif self.bcrypt_rounds > 15:
+            encryption_checks.append("Bcrypt rounds very high - may impact performance")
+
+        result['checks']['encryption'] = {
+            'status': 'passed' if not encryption_checks else 'warning',
+            'issues': encryption_checks
+        }
+
+        # CORS settings
+        cors_checks = []
+
+        if self.cors_enabled and '*' in self.cors_allowed_origins:
+            cors_checks.append("CORS allows all origins (*) - security risk in production")
+
+        result['checks']['cors'] = {
+            'status': 'passed' if not cors_checks else 'warning',
+            'issues': cors_checks
+        }
+
+        return result
+
+    def _validate_filesystem_config(self) -> Dict[str, Any]:
+        """Validate filesystem and storage configuration."""
+        result = {
+            'status': 'passed',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        # Check cache directory
+        cache_dir = Path(self.fastembed_cache_dir)
+        if not cache_dir.exists():
+            try:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                result['checks']['cache_directory'] = {
+                    'status': 'passed',
+                    'message': f"Created cache directory: {cache_dir}"
+                }
+            except Exception as e:
+                result['checks']['cache_directory'] = {
+                    'status': 'failed',
+                    'message': f"Cannot create cache directory: {str(e)}"
+                }
+                result['status'] = 'failed'
+        else:
+            result['checks']['cache_directory'] = {
+                'status': 'passed',
+                'message': f"Cache directory exists: {cache_dir}"
+            }
+
+        # Validate file size limits
+        if self.max_file_size_mb > 1000:  # 1GB
+            result['warnings'].append("Very large file size limit may impact performance")
+
+        # Validate allowed file types
+        allowed_types = self.allowed_file_types_list
+        if 'exe' in allowed_types or 'bat' in allowed_types:
+            result['warnings'].append("Executable file types in allowed list - security risk")
+
+        return result
+
+    async def _validate_ai_services(self) -> Dict[str, Any]:
+        """Validate AI/ML service configurations."""
+        result = {
+            'status': 'passed',
+            'checks': {},
+            'errors': [],
+            'warnings': []
+        }
+
+        # OpenAI configuration
+        if self.ai_regulatory_insights_enabled and not self.openai_api_key:
+            result['warnings'].append("AI insights enabled but OpenAI API key not configured")
+
+        # Model configuration
+        if self.openai_max_tokens > 8000:
+            result['warnings'].append("High OpenAI max tokens may increase costs")
+
+        if self.openai_temperature > 0.5:
+            result['warnings'].append("High OpenAI temperature may reduce consistency")
+
+        # Vector database configuration
+        if self.vector_dimension not in [384, 512, 768, 1024, 1536]:
+            result['warnings'].append("Unusual vector dimension - ensure compatibility with embedding model")
+
+        return result
+
     def is_feature_enabled(self, feature_name: str) -> bool:
         """Check if a feature flag is enabled."""
         feature_attr = f"feature_{feature_name.lower()}"
         return getattr(self, feature_attr, False)
+
+    @classmethod
+    def validate_config_file(cls, file_path: Union[str, Path]) -> Tuple[bool, List[str]]:
+        """Validate configuration file format and content."""
+        file_path = Path(file_path)
+        errors = []
+
+        if not file_path.exists():
+            return False, [f"Configuration file not found: {file_path}"]
+
+        try:
+            if file_path.suffix.lower() == '.yaml' or file_path.suffix.lower() == '.yml':
+                with open(file_path, 'r') as f:
+                    yaml.safe_load(f)
+            elif file_path.suffix.lower() == '.json':
+                with open(file_path, 'r') as f:
+                    json.load(f)
+            elif file_path.suffix.lower() == '.env':
+                # Validate .env file format
+                with open(file_path, 'r') as f:
+                    for line_num, line in enumerate(f, 1):
+                        line = line.strip()
+                        if line and not line.startswith('#'):
+                            if '=' not in line:
+                                errors.append(f"Line {line_num}: Invalid format, missing '='")
+            else:
+                errors.append(f"Unsupported configuration file format: {file_path.suffix}")
+
+            return len(errors) == 0, errors
+
+        except yaml.YAMLError as e:
+            return False, [f"YAML parsing error: {str(e)}"]
+        except json.JSONDecodeError as e:
+            return False, [f"JSON parsing error: {str(e)}"]
+        except Exception as e:
+            return False, [f"Configuration file validation error: {str(e)}"]
     
     model_config = {
         "env_file": ".env",
@@ -455,7 +1210,7 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """
-    Get cached application settings.
+    Get cached application settings with comprehensive validation.
     Uses LRU cache to avoid reading environment variables multiple times.
     """
     try:
@@ -467,9 +1222,40 @@ def get_settings() -> Settings:
             api_port=settings.api_port
         )
         return settings
+
+    except ConfigurationError as e:
+        logger.error(
+            "Configuration validation failed",
+            field=e.field,
+            error=str(e),
+            suggestions=e.suggestions
+        )
+
+        # Provide actionable error message
+        error_msg = f"Configuration Error in {e.field}: {str(e)}"
+        if e.suggestions:
+            error_msg += f"\n\nSuggestions:\n" + "\n".join(f"  - {s}" for s in e.suggestions)
+
+        raise ConfigurationError(error_msg, e.field, e.suggestions)
+
+    except ValidationError as e:
+        logger.error("Pydantic validation failed", errors=e.errors())
+
+        # Format validation errors with suggestions
+        formatted_errors = []
+        for error in e.errors():
+            field = ".".join(str(loc) for loc in error['loc'])
+            msg = error['msg']
+            formatted_errors.append(f"  {field}: {msg}")
+
+        error_msg = "Configuration validation failed:\n" + "\n".join(formatted_errors)
+        error_msg += "\n\nPlease check your environment variables and configuration files."
+
+        raise ConfigurationError(error_msg)
+
     except Exception as e:
-        logger.error(f"Failed to load configuration: {e}")
-        raise
+        logger.error(f"Unexpected error loading configuration: {e}")
+        raise ConfigurationError(f"Failed to load configuration: {str(e)}")
 
 
 def reload_settings() -> Settings:
@@ -479,6 +1265,107 @@ def reload_settings() -> Settings:
     """
     get_settings.cache_clear()
     return get_settings()
+
+
+async def validate_configuration(settings: Settings = None) -> Dict[str, Any]:
+    """
+    Perform comprehensive configuration validation.
+
+    Args:
+        settings: Settings instance to validate (uses default if None)
+
+    Returns:
+        Dict containing validation results
+    """
+    if settings is None:
+        settings = get_settings()
+
+    logger.info("Starting comprehensive configuration validation",
+                environment=settings.app_environment)
+
+    try:
+        validation_results = await settings.validate_all_configurations()
+
+        # Log validation summary
+        overall_status = validation_results['overall_status']
+        failed_validations = [
+            name for name, result in validation_results['validations'].items()
+            if result.get('status') == 'failed'
+        ]
+
+        if overall_status == 'passed':
+            logger.info("Configuration validation completed successfully")
+        else:
+            logger.error(
+                "Configuration validation failed",
+                failed_validations=failed_validations,
+                total_validations=len(validation_results['validations'])
+            )
+
+        return validation_results
+
+    except Exception as e:
+        logger.error("Configuration validation error", error=str(e))
+        return {
+            'overall_status': 'error',
+            'timestamp': datetime.utcnow().isoformat(),
+            'error': str(e),
+            'validations': {}
+        }
+
+
+def get_configuration_summary(settings: Settings = None) -> Dict[str, Any]:
+    """
+    Get a summary of current configuration settings.
+
+    Args:
+        settings: Settings instance to summarize (uses default if None)
+
+    Returns:
+        Dict containing configuration summary
+    """
+    if settings is None:
+        settings = get_settings()
+
+    return {
+        'environment': settings.app_environment,
+        'debug_mode': settings.debug,
+        'api_configuration': {
+            'host': settings.api_host,
+            'port': settings.api_port,
+            'version': settings.api_version,
+            'cors_enabled': settings.cors_enabled
+        },
+        'database_configuration': {
+            'pool_size': settings.database_pool_size,
+            'max_overflow': settings.database_max_overflow,
+            'pool_timeout': settings.database_pool_timeout
+        },
+        'security_configuration': {
+            'jwt_algorithm': settings.jwt_algorithm,
+            'jwt_access_token_expire_minutes': settings.jwt_access_token_expire_minutes,
+            'bcrypt_rounds': settings.bcrypt_rounds
+        },
+        'feature_flags': {
+            'advanced_analytics': settings.feature_advanced_analytics,
+            'predictive_compliance': settings.feature_predictive_compliance,
+            'automated_reporting': settings.feature_automated_reporting,
+            'real_time_monitoring': settings.feature_real_time_monitoring,
+            'mobile_alerts': settings.feature_mobile_alerts
+        },
+        'ai_configuration': {
+            'regulatory_insights_enabled': settings.ai_regulatory_insights_enabled,
+            'risk_scoring_enabled': settings.ai_risk_scoring_enabled,
+            'document_classification_enabled': settings.ai_document_classification_enabled,
+            'openai_model': settings.openai_model,
+            'anthropic_model': settings.anthropic_model
+        },
+        'monitoring_configuration': {
+            'metrics_enabled': settings.metrics_enabled,
+            'jaeger_enabled': settings.jaeger_enabled,
+            'log_level': settings.log_level
+        }
+    }
 
 
 # Export settings instance for convenient access

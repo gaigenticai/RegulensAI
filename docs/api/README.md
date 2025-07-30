@@ -1,11 +1,45 @@
-# Regulens AI - API Documentation
+# RegulensAI API Documentation
 
-## Overview
+## 🚀 Overview
 
-Regulens AI is an enterprise-grade financial compliance platform providing comprehensive AML/KYC monitoring, regulatory compliance management, and AI-powered risk assessment capabilities.
+**RegulensAI** is an enterprise-grade financial compliance platform providing comprehensive AML/KYC monitoring, regulatory compliance management, and AI-powered risk assessment capabilities.
 
-## Table of Contents
+## 📚 Documentation Resources
 
+### 🌐 Interactive API Documentation
+- **[Swagger UI Documentation](./index.html)** - Interactive API explorer with live testing
+- **[OpenAPI 3.0 Specification](./openapi_spec.yaml)** - Complete API specification
+
+### 📖 Guides & Examples
+- **[API Examples](./examples.md)** - Comprehensive code examples and curl commands
+- **[Authentication Guide](#authentication)** - JWT-based authentication flow
+- **[Error Handling Guide](#error-handling)** - Structured error responses
+
+## 🎯 Quick Start
+
+### 1. Access Interactive Documentation
+Open the [Swagger UI Documentation](./index.html) in your browser for an interactive API explorer.
+
+### 2. Authentication
+```bash
+curl -X POST "http://localhost:8000/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@regulens.ai",
+    "password": "admin123"
+  }'
+```
+
+### 3. Use the API
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "X-Tenant-ID: your-tenant-id" \
+     "http://localhost:8000/api/v1/dashboard/metrics"
+```
+
+## 📋 Table of Contents
+
+- [Core Features](#core-features)
 - [Authentication](#authentication)
 - [API Endpoints](#api-endpoints)
 - [Data Models](#data-models)
@@ -13,6 +47,17 @@ Regulens AI is an enterprise-grade financial compliance platform providing compr
 - [Rate Limiting](#rate-limiting)
 - [Security](#security)
 - [Examples](#examples)
+
+## 🔥 Core Features
+
+- **🔐 Authentication & Authorization**: JWT-based auth with RBAC
+- **📊 Compliance Management**: Task tracking and report generation
+- **🎓 Training Portal**: Interactive compliance training modules
+- **📈 Dashboard & Analytics**: Real-time metrics and KPIs
+- **👥 User Management**: Complete user lifecycle management
+- **🤖 AI-Powered Insights**: Machine learning-driven analysis
+- **🔗 External Integrations**: GRC systems and data providers
+- **📱 Multi-channel Notifications**: Email, SMS, and webhook alerts
 
 ## Authentication
 

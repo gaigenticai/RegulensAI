@@ -1,0 +1,322 @@
+version: '3.8'
+
+services:
+  # Training Portal API Service
+  training-api:
+    build:
+      context: ../../
+      dockerfile: deployment/training-portal/Dockerfile.api
+    container_name: regulens-training-api
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://regulens:${DB_PASSWORD}@training-db:5432/regulens_training
+      - REDIS_URL=redis://training-redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - LOG_LEVEL=INFO
+      - METRICS_ENABLED=true
+      - CACHE_TTL=3600
+      - MAX_WORKERS=4
+    ports:
+      - "8000:8000"
+    depends_on:
+      - training-db
+      - training-redis
+    volumes:
+      - training-logs:/app/logs
+      - training-uploads:/app/uploads
+      - training-certificates:/app/certificates
+    networks:
+      - training-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/training/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Training Portal Frontend
+  training-frontend:
+    build:
+      context: ../../
+      dockerfile: deployment/training-portal/Dockerfile.frontend
+    container_name: regulens-training-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=http://training-api:8000/api/v1
+      - REACT_APP_ENVIRONMENT=production
+      - REACT_APP_VERSION=${APP_VERSION}
+      - REACT_APP_SENTRY_DSN=${SENTRY_DSN}
+    ports:
+      - "3000:80"
+    depends_on:
+      - training-api
+    networks:
+      - training-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # PostgreSQL Database
+  training-db:
+    image: postgres:15-alpine
+    container_name: regulens-training-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=regulens_training
+      - POSTGRES_USER=regulens
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "5432:5432"
+    volumes:
+      - training-db-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - training-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U regulens -d regulens_training"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis Cache
+  training-redis:
+    image: redis:7-alpine
+    container_name: regulens-training-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - training-redis-data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - training-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Nginx Load Balancer & Reverse Proxy
+  training-nginx:
+    image: nginx:alpine
+    container_name: regulens-training-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+      - training-logs:/var/log/nginx
+    depends_on:
+      - training-api
+      - training-frontend
+    networks:
+      - training-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Monitoring - Prometheus
+  training-prometheus:
+    image: prom/prometheus:latest
+    container_name: regulens-training-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - training-prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Monitoring - Grafana
+  training-grafana:
+    image: grafana/grafana:latest
+    container_name: regulens-training-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - training-grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - training-prometheus
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Log Aggregation - ELK Stack (Elasticsearch)
+  training-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: regulens-training-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - training-elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Log Processing - Logstash
+  training-logstash:
+    image: docker.elastic.co/logstash/logstash:8.8.0
+    container_name: regulens-training-logstash
+    restart: unless-stopped
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - training-logs:/var/log/training
+    depends_on:
+      - training-elasticsearch
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Log Visualization - Kibana
+  training-kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: regulens-training-kibana
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://training-elasticsearch:9200
+    depends_on:
+      - training-elasticsearch
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Backup Service
+  training-backup:
+    build:
+      context: ../../
+      dockerfile: deployment/training-portal/Dockerfile.backup
+    container_name: regulens-training-backup
+    restart: unless-stopped
+    environment:
+      - BACKUP_SCHEDULE=0 2 * * *  # Daily at 2 AM
+      - DATABASE_URL=postgresql://regulens:${DB_PASSWORD}@training-db:5432/regulens_training
+      - S3_BUCKET=${BACKUP_S3_BUCKET}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - RETENTION_DAYS=30
+    volumes:
+      - training-backups:/backups
+      - training-db-data:/var/lib/postgresql/data:ro
+    depends_on:
+      - training-db
+    networks:
+      - training-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+volumes:
+  training-db-data:
+    driver: local
+  training-redis-data:
+    driver: local
+  training-logs:
+    driver: local
+  training-uploads:
+    driver: local
+  training-certificates:
+    driver: local
+  training-backups:
+    driver: local
+  training-prometheus-data:
+    driver: local
+  training-grafana-data:
+    driver: local
+  training-elasticsearch-data:
+    driver: local
+
+networks:
+  training-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

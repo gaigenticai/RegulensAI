@@ -40,6 +40,7 @@ from core_infra.api.routes import (
     tasks_router,
     reports_router,
     ai_router,
+    operations_router,
     health_router
 )
 from core_infra.api.routes.ui_portals import router as ui_portals_router
@@ -328,6 +329,9 @@ app.include_router(reports_router, prefix=f"/{settings.api_version}/reports", ta
 
 # AI and Insights
 app.include_router(ai_router, prefix=f"/{settings.api_version}/ai", tags=["AI Insights"])
+
+# Operations and Deployment
+app.include_router(operations_router, prefix=f"/{settings.api_version}/operations", tags=["Operations"])
 
 # UI Portals (Phase 4)
 app.include_router(ui_portals_router, tags=["UI Portals"])
