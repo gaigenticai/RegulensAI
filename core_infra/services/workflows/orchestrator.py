@@ -634,8 +634,53 @@ class WorkflowOrchestrator:
     
     async def _schedule_follow_up_workflows(self, regulation_id: str, impact_assessment: Dict[str, Any]):
         """Schedule follow-up workflows based on deadlines."""
-        # Implementation would schedule future workflow triggers
-        pass
+        try:
+            deadlines = impact_assessment.get('deadlines', [])
+            scheduled_workflows = []
+            
+            for deadline in deadlines:
+                # Calculate when to trigger the follow-up workflow
+                deadline_date = datetime.fromisoformat(deadline['date'])
+                reminder_date = deadline_date - timedelta(days=deadline.get('reminder_days', 7))
+                
+                # Create scheduled trigger
+                trigger_config = {
+                    'regulation_id': regulation_id,
+                    'deadline_type': deadline['type'],
+                    'deadline_date': deadline_date.isoformat(),
+                    'original_assessment': impact_assessment
+                }
+                
+                # Store scheduled workflow
+                async with get_database() as db:
+                    trigger_id = await db.fetchval(
+                        """
+                        INSERT INTO workflow_scheduled_triggers 
+                        (id, workflow_definition_id, scheduled_time, trigger_type,
+                         config, status, created_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        RETURNING id
+                        """,
+                        str(uuid.uuid4()),
+                        deadline.get('workflow_id', 'compliance_deadline_workflow'),
+                        reminder_date,
+                        'scheduled',
+                        json.dumps(trigger_config),
+                        'pending',
+                        datetime.utcnow()
+                    )
+                
+                scheduled_workflows.append({
+                    'trigger_id': trigger_id,
+                    'deadline_type': deadline['type'],
+                    'scheduled_for': reminder_date.isoformat()
+                })
+            
+            logger.info(f"Scheduled {len(scheduled_workflows)} follow-up workflows for regulation {regulation_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to schedule follow-up workflows: {e}")
+            # Non-critical - main workflow continues
     
     async def _update_trigger(self, trigger: WorkflowTrigger):
         """Update trigger in database."""

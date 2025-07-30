@@ -332,7 +332,23 @@ class DRComponentManager:
         # Implementation depends on component type
         if self.component_name == "database":
             return await backup_service.check_backup_exists()
-        return True  # Placeholder for other components
+        # Check backup exists for different component types
+        if self.component_name == "api":
+            # Check API state snapshots
+            backup_path = Path(f"/backups/api/{datetime.utcnow().strftime('%Y%m%d')}")
+            return backup_path.exists() and any(backup_path.glob("*.snapshot"))
+        elif self.component_name == "config":
+            # Check configuration backups
+            backup_path = Path(f"/backups/config/latest")
+            return backup_path.exists() and (backup_path / "config.json").exists()
+        elif self.component_name == "logs":
+            # Check log archives
+            backup_path = Path(f"/backups/logs/{datetime.utcnow().strftime('%Y%m%d')}")
+            return backup_path.exists()
+        else:
+            # For unknown components, check generic backup directory
+            backup_path = Path(f"/backups/{self.component_name}")
+            return backup_path.exists() and any(backup_path.glob("*"))
     
     async def _validate_backup_integrity(self) -> bool:
         """Validate backup file integrity."""
@@ -347,15 +363,102 @@ class DRComponentManager:
                 last_backup = datetime.fromisoformat(stats["last_backup_time"])
                 age_minutes = (datetime.utcnow() - last_backup).total_seconds() / 60
                 return age_minutes <= self.dr_objectives.rpo_minutes
-        return True  # Placeholder
+        
+        # Check backup age for non-database components
+        backup_path = None
+        
+        if self.component_name == "api":
+            backup_paths = list(Path(f"/backups/api").glob("*/latest.timestamp"))
+        elif self.component_name == "config":
+            backup_paths = [Path(f"/backups/config/latest/timestamp")]
+        elif self.component_name == "logs":
+            backup_paths = list(Path(f"/backups/logs").glob("*/timestamp"))
+        else:
+            backup_paths = list(Path(f"/backups/{self.component_name}").glob("*/timestamp"))
+        
+        # Find most recent backup timestamp
+        latest_backup_time = None
+        for timestamp_file in backup_paths:
+            if timestamp_file.exists():
+                try:
+                    async with aiofiles.open(timestamp_file, 'r') as f:
+                        timestamp_str = await f.read()
+                        backup_time = datetime.fromisoformat(timestamp_str.strip())
+                        if latest_backup_time is None or backup_time > latest_backup_time:
+                            latest_backup_time = backup_time
+                except Exception:
+                    continue
+        
+        if latest_backup_time:
+            age_minutes = (datetime.utcnow() - latest_backup_time).total_seconds() / 60
+            return age_minutes <= self.dr_objectives.rpo_minutes
+        
+        return False  # No valid backup found
     
     async def _validate_backup_completeness(self) -> bool:
         """Validate backup contains all required data."""
-        return True  # Placeholder
+        try:
+            if self.component_name == "database":
+                # Check database backup has all tables
+                return await backup_service.validate_backup_completeness()
+            elif self.component_name == "api":
+                # Check API state backup has required components
+                backup_path = Path(f"/backups/api/latest")
+                required_files = ["routes.json", "middleware.json", "config.json"]
+                return all((backup_path / f).exists() for f in required_files)
+            elif self.component_name == "config":
+                # Check configuration backup completeness
+                backup_path = Path(f"/backups/config/latest")
+                required_files = ["config.json", "secrets.enc", "env.json"]
+                return all((backup_path / f).exists() for f in required_files)
+            elif self.component_name == "logs":
+                # Check log backup has all log types
+                backup_path = Path(f"/backups/logs/latest")
+                log_types = ["application.log", "error.log", "access.log"]
+                return any((backup_path / lt).exists() for lt in log_types)
+            else:
+                # Generic completeness check
+                backup_path = Path(f"/backups/{self.component_name}/latest")
+                return backup_path.exists() and any(backup_path.iterdir())
+        except Exception as e:
+            logger.error(f"Backup completeness validation failed: {e}")
+            return False
     
     async def _run_pre_failover_checks(self) -> bool:
         """Run pre-failover validation checks."""
-        return True  # Placeholder
+        try:
+            checks_passed = True
+            
+            # Check system resources
+            if self.component_name == "database":
+                # Check replica status
+                replica_status = await backup_service.check_replica_status()
+                checks_passed &= replica_status.get("is_healthy", False)
+                checks_passed &= replica_status.get("lag_seconds", float('inf')) < 60
+            
+            # Check network connectivity to failover target
+            failover_endpoint = get_settings().dr_config.get(f"{self.component_name}_failover_endpoint")
+            if failover_endpoint:
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        async with session.get(f"{failover_endpoint}/health", timeout=5) as resp:
+                            checks_passed &= resp.status == 200
+                    except Exception:
+                        checks_passed = False
+            
+            # Check no active transactions or operations
+            if self.component_name in ["database", "api"]:
+                active_connections = await self._get_active_connections()
+                checks_passed &= active_connections < 100  # Threshold
+            
+            # Verify backup availability
+            checks_passed &= await self._check_backup_exists()
+            
+            return checks_passed
+            
+        except Exception as e:
+            logger.error(f"Pre-failover checks failed: {e}")
+            return False
     
     async def _simulate_failover(self) -> bool:
         """Simulate failover procedure."""
@@ -364,24 +467,389 @@ class DRComponentManager:
     
     async def _execute_failover(self) -> bool:
         """Execute actual failover procedure."""
-        # Implementation depends on component type
-        return True  # Placeholder
+        try:
+            if self.component_name == "database":
+                # Promote replica to primary
+                return await backup_service.promote_replica()
+            
+            elif self.component_name == "api":
+                # Switch to secondary API cluster
+                settings = get_settings()
+                primary_url = settings.api_primary_url
+                secondary_url = settings.api_secondary_url
+                
+                # Update load balancer configuration
+                async with aiohttp.ClientSession() as session:
+                    payload = {
+                        "action": "failover",
+                        "from": primary_url,
+                        "to": secondary_url
+                    }
+                    async with session.post(
+                        f"{settings.load_balancer_api}/failover",
+                        json=payload
+                    ) as resp:
+                        return resp.status == 200
+            
+            elif self.component_name == "cache":
+                # Switch to backup cache cluster
+                cache_config = get_settings().cache_config
+                return await self._switch_cache_cluster(
+                    cache_config["primary"],
+                    cache_config["secondary"]
+                )
+            
+            else:
+                # Generic failover - update DNS/routing
+                return await self._update_routing_table(self.component_name)
+                
+        except Exception as e:
+            logger.error(f"Failover execution failed: {e}")
+            return False
     
     async def _run_post_failover_checks(self) -> bool:
         """Run post-failover validation checks."""
-        return True  # Placeholder
+        try:
+            checks_passed = True
+            
+            # Verify component is responding
+            failover_endpoint = get_settings().dr_config.get(f"{self.component_name}_failover_endpoint")
+            if failover_endpoint:
+                async with aiohttp.ClientSession() as session:
+                    try:
+                        async with session.get(f"{failover_endpoint}/health", timeout=10) as resp:
+                            checks_passed &= resp.status == 200
+                            health_data = await resp.json()
+                            checks_passed &= health_data.get("status") == "healthy"
+                    except Exception:
+                        checks_passed = False
+            
+            # Verify data consistency
+            if self.component_name == "database":
+                # Check row counts match
+                consistency_check = await backup_service.verify_data_consistency()
+                checks_passed &= consistency_check.get("is_consistent", False)
+            
+            # Check performance metrics
+            if self.component_name in ["api", "database"]:
+                metrics = await self._get_performance_metrics()
+                # Ensure performance is within acceptable range
+                checks_passed &= metrics.get("response_time_ms", float('inf')) < 1000
+                checks_passed &= metrics.get("error_rate", 1.0) < 0.05
+            
+            # Verify all dependent services can connect
+            dependent_services = get_settings().dr_config.get(f"{self.component_name}_dependents", [])
+            for service in dependent_services:
+                service_check = await self._check_service_connectivity(service)
+                checks_passed &= service_check
+            
+            return checks_passed
+            
+        except Exception as e:
+            logger.error(f"Post-failover checks failed: {e}")
+            return False
     
     async def _validate_recovery_backup(self, backup_timestamp: Optional[datetime]) -> bool:
         """Validate backup for recovery operation."""
-        return True  # Placeholder
+        try:
+            # Check backup exists
+            if not await self._check_backup_exists():
+                return False
+            
+            # If specific timestamp requested, validate it exists
+            if backup_timestamp:
+                backup_dir = Path(f"/backups/{self.component_name}/{backup_timestamp.strftime('%Y%m%d_%H%M%S')}")
+                if not backup_dir.exists():
+                    logger.error(f"Backup not found for timestamp: {backup_timestamp}")
+                    return False
+                
+                # Verify backup metadata
+                metadata_file = backup_dir / "metadata.json"
+                if metadata_file.exists():
+                    async with aiofiles.open(metadata_file, 'r') as f:
+                        metadata = json.loads(await f.read())
+                        # Check backup is complete
+                        if not metadata.get("is_complete", False):
+                            return False
+                        # Check backup is not corrupted
+                        if metadata.get("is_corrupted", False):
+                            return False
+            
+            # Validate backup integrity
+            integrity_valid = await self._validate_backup_integrity()
+            if not integrity_valid:
+                return False
+            
+            # Validate backup completeness
+            completeness_valid = await self._validate_backup_completeness()
+            
+            return completeness_valid
+            
+        except Exception as e:
+            logger.error(f"Recovery backup validation failed: {e}")
+            return False
     
     async def _execute_recovery(self, backup_timestamp: Optional[datetime]) -> bool:
         """Execute recovery from backup."""
-        return True  # Placeholder
+        try:
+            if self.component_name == "database":
+                # Restore database from backup
+                return await backup_service.restore_from_backup(backup_timestamp)
+            
+            elif self.component_name == "api":
+                # Restore API configuration and state
+                backup_dir = self._get_backup_directory(backup_timestamp)
+                
+                # Stop API service
+                await self._stop_service("api")
+                
+                # Restore configuration files
+                config_files = ["routes.json", "middleware.json", "config.json"]
+                for config_file in config_files:
+                    src = backup_dir / config_file
+                    dst = Path(f"/app/config/{config_file}")
+                    if src.exists():
+                        async with aiofiles.open(src, 'rb') as sf:
+                            async with aiofiles.open(dst, 'wb') as df:
+                                await df.write(await sf.read())
+                
+                # Restart API service
+                return await self._start_service("api")
+            
+            elif self.component_name == "config":
+                # Restore configuration files
+                backup_dir = self._get_backup_directory(backup_timestamp)
+                config_dir = Path("/app/config")
+                
+                # Backup current config
+                await self._backup_current_config()
+                
+                # Restore all config files
+                for config_file in backup_dir.glob("*"):
+                    if config_file.is_file():
+                        dst = config_dir / config_file.name
+                        async with aiofiles.open(config_file, 'rb') as sf:
+                            async with aiofiles.open(dst, 'wb') as df:
+                                await df.write(await sf.read())
+                
+                # Reload configuration
+                return await self._reload_configuration()
+            
+            else:
+                # Generic recovery process
+                backup_dir = self._get_backup_directory(backup_timestamp)
+                target_dir = Path(f"/app/{self.component_name}")
+                
+                # Restore files
+                import shutil
+                shutil.copytree(backup_dir, target_dir, dirs_exist_ok=True)
+                
+                # Restart component
+                return await self._restart_component(self.component_name)
+                
+        except Exception as e:
+            logger.error(f"Recovery execution failed: {e}")
+            return False
     
     async def _validate_data_integrity(self) -> bool:
         """Validate data integrity after recovery."""
-        return True  # Placeholder
+        try:
+            if self.component_name == "database":
+                # Run database integrity checks
+                integrity_result = await backup_service.check_data_integrity()
+                return integrity_result.get("is_valid", False)
+            
+            elif self.component_name == "api":
+                # Verify API endpoints are responding correctly
+                test_endpoints = ["/health", "/api/v1/status", "/api/v1/config"]
+                api_url = get_settings().api_url
+                
+                async with aiohttp.ClientSession() as session:
+                    for endpoint in test_endpoints:
+                        try:
+                            async with session.get(f"{api_url}{endpoint}", timeout=5) as resp:
+                                if resp.status != 200:
+                                    return False
+                        except Exception:
+                            return False
+                return True
+            
+            elif self.component_name == "config":
+                # Validate configuration files
+                config_dir = Path("/app/config")
+                required_configs = ["config.json", "env.json"]
+                
+                for config_file in required_configs:
+                    config_path = config_dir / config_file
+                    if not config_path.exists():
+                        return False
+                    
+                    # Validate JSON format
+                    try:
+                        async with aiofiles.open(config_path, 'r') as f:
+                            json.loads(await f.read())
+                    except json.JSONDecodeError:
+                        return False
+                
+                return True
+            
+            else:
+                # Generic integrity check - verify key files exist
+                component_dir = Path(f"/app/{self.component_name}")
+                return component_dir.exists() and any(component_dir.iterdir())
+                
+        except Exception as e:
+            logger.error(f"Data integrity validation failed: {e}")
+            return False
+    
+    async def _get_active_connections(self) -> int:
+        """Get number of active connections to the component."""
+        try:
+            if self.component_name == "database":
+                result = await backup_service.get_connection_count()
+                return result.get("count", 0)
+            elif self.component_name == "api":
+                # Query API metrics endpoint
+                api_url = get_settings().api_url
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{api_url}/metrics/connections") as resp:
+                        data = await resp.json()
+                        return data.get("active_connections", 0)
+            return 0
+        except Exception:
+            return 0
+    
+    async def _switch_cache_cluster(self, primary: str, secondary: str) -> bool:
+        """Switch from primary to secondary cache cluster."""
+        try:
+            settings = get_settings()
+            cache_manager_url = settings.cache_manager_url
+            
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "action": "switch_cluster",
+                    "from_cluster": primary,
+                    "to_cluster": secondary
+                }
+                async with session.post(f"{cache_manager_url}/switch", json=payload) as resp:
+                    return resp.status == 200
+        except Exception as e:
+            logger.error(f"Cache cluster switch failed: {e}")
+            return False
+    
+    async def _update_routing_table(self, component: str) -> bool:
+        """Update routing table for component failover."""
+        try:
+            settings = get_settings()
+            routing_api = settings.routing_service_url
+            
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "component": component,
+                    "action": "failover",
+                    "target": "secondary"
+                }
+                async with session.put(f"{routing_api}/routes", json=payload) as resp:
+                    return resp.status == 200
+        except Exception as e:
+            logger.error(f"Routing table update failed: {e}")
+            return False
+    
+    async def _get_performance_metrics(self) -> Dict[str, Any]:
+        """Get current performance metrics for the component."""
+        try:
+            if self.component_name in ["api", "database"]:
+                metrics_url = get_settings().metrics_service_url
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"{metrics_url}/components/{self.component_name}"
+                    ) as resp:
+                        return await resp.json()
+            return {"response_time_ms": 0, "error_rate": 0}
+        except Exception:
+            return {"response_time_ms": 0, "error_rate": 0}
+    
+    async def _check_service_connectivity(self, service: str) -> bool:
+        """Check if a service can connect to the component."""
+        try:
+            service_url = get_settings().service_urls.get(service)
+            if not service_url:
+                return True  # Unknown service, assume OK
+            
+            async with aiohttp.ClientSession() as session:
+                payload = {"target": self.component_name}
+                async with session.post(
+                    f"{service_url}/connectivity/check",
+                    json=payload,
+                    timeout=10
+                ) as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+    
+    def _get_backup_directory(self, timestamp: Optional[datetime]) -> Path:
+        """Get backup directory path for given timestamp."""
+        if timestamp:
+            return Path(f"/backups/{self.component_name}/{timestamp.strftime('%Y%m%d_%H%M%S')}")
+        else:
+            return Path(f"/backups/{self.component_name}/latest")
+    
+    async def _stop_service(self, service: str) -> bool:
+        """Stop a service."""
+        try:
+            control_url = get_settings().service_control_url
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{control_url}/services/{service}/stop") as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+    
+    async def _start_service(self, service: str) -> bool:
+        """Start a service."""
+        try:
+            control_url = get_settings().service_control_url
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{control_url}/services/{service}/start") as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+    
+    async def _backup_current_config(self) -> bool:
+        """Backup current configuration before recovery."""
+        try:
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            backup_dir = Path(f"/backups/config/pre_recovery_{timestamp}")
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            
+            config_dir = Path("/app/config")
+            for config_file in config_dir.glob("*"):
+                if config_file.is_file():
+                    dst = backup_dir / config_file.name
+                    async with aiofiles.open(config_file, 'rb') as sf:
+                        async with aiofiles.open(dst, 'wb') as df:
+                            await df.write(await sf.read())
+            return True
+        except Exception:
+            return False
+    
+    async def _reload_configuration(self) -> bool:
+        """Reload configuration after recovery."""
+        try:
+            reload_url = get_settings().config_service_url
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{reload_url}/reload") as resp:
+                    return resp.status == 200
+        except Exception:
+            return False
+    
+    async def _restart_component(self, component: str) -> bool:
+        """Restart a component."""
+        try:
+            await self._stop_service(component)
+            await asyncio.sleep(2)  # Wait for shutdown
+            return await self._start_service(component)
+        except Exception:
+            return False
 
 
 class DisasterRecoveryManager:

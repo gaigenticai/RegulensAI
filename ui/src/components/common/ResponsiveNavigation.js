@@ -105,6 +105,14 @@ export const ResponsiveNavigation = ({
     setUserMenuAnchor(null);
   };
 
+  const handleLogout = () => {
+    // Clear user session and redirect to login
+    if (onNavigate) {
+      onNavigate('/logout');
+    }
+    handleUserMenuClose();
+  };
+
   const handleItemExpand = (itemId) => {
     setExpandedItems(prev => ({
       ...prev,
@@ -430,7 +438,7 @@ export const ResponsiveNavigation = ({
         
         <Divider />
         
-        <MenuItem onClick={() => console.log('Logout')}>
+                      <MenuItem onClick={() => handleLogout()}>
           <ListItemIcon>
             <Logout fontSize="small" />
           </ListItemIcon>

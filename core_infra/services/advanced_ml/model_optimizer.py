@@ -353,7 +353,8 @@ class ModelOptimizer:
             # Calculate parameter importance
             try:
                 importance = optuna.importance.get_param_importances(study)
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to calculate parameter importance: {e}")
                 importance = None
             
             return OptimizationResult(
@@ -717,8 +718,9 @@ class ModelOptimizer:
         for _ in range(5):
             try:
                 _ = model.predict(sample_input)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Warm-up prediction failed: {e}")
+                # Continue with warm-up even if some predictions fail
         
         # Measure
         start_time = time.time()
@@ -727,8 +729,9 @@ class ModelOptimizer:
         for _ in range(num_runs):
             try:
                 _ = model.predict(sample_input)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Inference time measurement prediction failed: {e}")
+                # Continue measuring even if some predictions fail
         
         end_time = time.time()
         avg_time_seconds = (end_time - start_time) / num_runs
@@ -745,7 +748,8 @@ class ModelOptimizer:
             model_bytes = pickle.dumps(model)
             size_mb = len(model_bytes) / (1024 * 1024)
             return size_mb
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to estimate model size: {e}")
             # Fallback: rough estimation
             return 10.0  # Default 10 MB
     

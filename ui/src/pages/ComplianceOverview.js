@@ -104,12 +104,12 @@ const ComplianceOverview = () => {
 
   const handleDownloadReport = (reportId) => {
     // Implement report download logic
-    console.log('Downloading report:', reportId);
+    // Download report functionality
   };
 
   const handleViewReport = (reportId) => {
     // Implement report viewing logic
-    console.log('Viewing report:', reportId);
+    // View report functionality
   };
 
   return (

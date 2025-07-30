@@ -80,7 +80,7 @@ const SystemHealth = () => {
 
   const refreshStatus = () => {
     // Simulate refresh
-    console.log('Refreshing system status...');
+            // Refreshing system status
   };
 
   return (

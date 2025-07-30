@@ -303,24 +303,248 @@ class TrainingCacheService:
     async def warm_cache_for_user(self, user_id: str, tenant_id: str) -> bool:
         """Pre-warm cache with commonly accessed data for a user."""
         try:
-            # This would typically be called after login or during off-peak hours
-            # Implementation would fetch and cache:
-            # - User's enrollments
-            # - Active modules for tenant
-            # - User's progress data
-            # - Recommendations
-            
             logger.info("Cache warming initiated", user_id=user_id, tenant_id=tenant_id)
             
-            # Placeholder for actual cache warming logic
-            # In a real implementation, this would make database calls
-            # and populate the cache with frequently accessed data
+            # Run cache warming tasks concurrently
+            tasks = []
             
-            return True
+            # 1. Warm user enrollments cache
+            tasks.append(self._warm_user_enrollments(user_id, tenant_id))
+            
+            # 2. Warm active modules cache for tenant
+            tasks.append(self._warm_tenant_modules(tenant_id))
+            
+            # 3. Warm user progress data
+            tasks.append(self._warm_user_progress(user_id, tenant_id))
+            
+            # 4. Warm recommendations cache
+            tasks.append(self._warm_recommendations(user_id, tenant_id))
+            
+            # 5. Warm user certificates cache
+            tasks.append(self._warm_user_certificates(user_id, tenant_id))
+            
+            # Execute all warming tasks concurrently
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Count successful operations
+            successful = sum(1 for r in results if r is True)
+            total = len(results)
+            
+            logger.info(
+                "Cache warming completed",
+                user_id=user_id,
+                tenant_id=tenant_id,
+                successful=successful,
+                total=total
+            )
+            
+            # Consider warming successful if at least 80% of tasks succeeded
+            return successful >= (total * 0.8)
             
         except Exception as e:
             logger.error("Failed to warm cache", user_id=user_id, error=str(e))
             return False
+    
+    async def _warm_user_enrollments(self, user_id: str, tenant_id: str) -> bool:
+        """Warm cache with user's enrollment data."""
+        try:
+            # Simulate fetching enrollments from database
+            from core_infra.database.connection import get_database
+            
+            async with get_database() as db:
+                enrollments = await db.fetch_all(
+                    """
+                    SELECT e.*, m.title, m.description, m.difficulty_level
+                    FROM training_enrollments e
+                    JOIN training_modules m ON e.module_id = m.id
+                    WHERE e.user_id = $1 AND e.tenant_id = $2
+                    AND e.status IN ('active', 'in_progress')
+                    ORDER BY e.enrolled_at DESC
+                    """,
+                    user_id, tenant_id
+                )
+                
+                # Cache the results
+                cache_key = self._build_cache_key('enrollment', 'user', user_id)
+                await self.cache_manager.set(
+                    cache_key,
+                    [dict(e) for e in enrollments],
+                    ttl=self.default_ttl
+                )
+                
+                logger.debug("Warmed user enrollments cache", user_id=user_id, count=len(enrollments))
+                return True
+                
+        except Exception as e:
+            logger.error("Failed to warm user enrollments", user_id=user_id, error=str(e))
+            return False
+    
+    async def _warm_tenant_modules(self, tenant_id: str) -> bool:
+        """Warm cache with tenant's active modules."""
+        try:
+            from core_infra.database.connection import get_database
+            
+            async with get_database() as db:
+                modules = await db.fetch_all(
+                    """
+                    SELECT * FROM training_modules
+                    WHERE tenant_id = $1 AND is_active = true
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                    """,
+                    tenant_id
+                )
+                
+                # Cache the results
+                cache_key = self._build_cache_key('module', 'tenant', tenant_id, 'active')
+                await self.cache_manager.set(
+                    cache_key,
+                    [dict(m) for m in modules],
+                    ttl=self.long_ttl
+                )
+                
+                logger.debug("Warmed tenant modules cache", tenant_id=tenant_id, count=len(modules))
+                return True
+                
+        except Exception as e:
+            logger.error("Failed to warm tenant modules", tenant_id=tenant_id, error=str(e))
+            return False
+    
+    async def _warm_user_progress(self, user_id: str, tenant_id: str) -> bool:
+        """Warm cache with user's progress data."""
+        try:
+            from core_infra.database.connection import get_database
+            
+            async with get_database() as db:
+                # Get active enrollments first
+                enrollments = await db.fetch_all(
+                    """
+                    SELECT id FROM training_enrollments
+                    WHERE user_id = $1 AND tenant_id = $2
+                    AND status IN ('active', 'in_progress')
+                    """,
+                    user_id, tenant_id
+                )
+                
+                # For each enrollment, cache progress
+                for enrollment in enrollments:
+                    progress = await db.fetch_one(
+                        """
+                        SELECT * FROM training_progress
+                        WHERE enrollment_id = $1
+                        ORDER BY last_accessed DESC
+                        LIMIT 1
+                        """,
+                        enrollment['id']
+                    )
+                    
+                    if progress:
+                        cache_key = self._build_cache_key('progress', 'enrollment', str(enrollment['id']))
+                        await self.cache_manager.set(
+                            cache_key,
+                            dict(progress),
+                            ttl=self.default_ttl
+                        )
+                
+                logger.debug("Warmed user progress cache", user_id=user_id, enrollments=len(enrollments))
+                return True
+                
+        except Exception as e:
+            logger.error("Failed to warm user progress", user_id=user_id, error=str(e))
+            return False
+    
+    async def _warm_recommendations(self, user_id: str, tenant_id: str) -> bool:
+        """Warm cache with personalized recommendations."""
+        try:
+            # Generate recommendations based on user's history
+            recommendations = await self._generate_recommendations(user_id, tenant_id)
+            
+            # Cache the results
+            cache_key = self._build_cache_key('recommendations', 'user', user_id)
+            await self.cache_manager.set(
+                cache_key,
+                recommendations,
+                ttl=self.default_ttl
+            )
+            
+            logger.debug("Warmed recommendations cache", user_id=user_id, count=len(recommendations))
+            return True
+            
+        except Exception as e:
+            logger.error("Failed to warm recommendations", user_id=user_id, error=str(e))
+            return False
+    
+    async def _warm_user_certificates(self, user_id: str, tenant_id: str) -> bool:
+        """Warm cache with user's certificates."""
+        try:
+            from core_infra.database.connection import get_database
+            
+            async with get_database() as db:
+                certificates = await db.fetch_all(
+                    """
+                    SELECT c.*, m.title as module_title
+                    FROM training_certificates c
+                    JOIN training_modules m ON c.module_id = m.id
+                    WHERE c.user_id = $1 AND c.tenant_id = $2
+                    ORDER BY c.issued_at DESC
+                    """,
+                    user_id, tenant_id
+                )
+                
+                # Cache the results
+                cache_key = self._build_cache_key('certificates', 'user', user_id)
+                await self.cache_manager.set(
+                    cache_key,
+                    [dict(c) for c in certificates],
+                    ttl=self.long_ttl
+                )
+                
+                logger.debug("Warmed user certificates cache", user_id=user_id, count=len(certificates))
+                return True
+                
+        except Exception as e:
+            logger.error("Failed to warm user certificates", user_id=user_id, error=str(e))
+            return False
+    
+    async def _generate_recommendations(self, user_id: str, tenant_id: str) -> List[Dict[str, Any]]:
+        """Generate personalized module recommendations."""
+        from core_infra.database.connection import get_database
+        
+        async with get_database() as db:
+            # Get user's completed modules
+            completed = await db.fetch_all(
+                """
+                SELECT DISTINCT module_id, m.category
+                FROM training_enrollments e
+                JOIN training_modules m ON e.module_id = m.id
+                WHERE e.user_id = $1 AND e.status = 'completed'
+                """,
+                user_id
+            )
+            
+            completed_ids = [c['module_id'] for c in completed]
+            completed_categories = [c['category'] for c in completed]
+            
+            # Find recommended modules
+            recommendations = await db.fetch_all(
+                """
+                SELECT m.*, AVG(e.rating) as avg_rating
+                FROM training_modules m
+                LEFT JOIN training_enrollments e ON m.id = e.module_id
+                WHERE m.tenant_id = $1 
+                AND m.is_active = true
+                AND m.id NOT IN (SELECT unnest($2::uuid[]))
+                AND (m.category = ANY($3::text[]) OR m.difficulty_level = 'beginner')
+                GROUP BY m.id
+                ORDER BY avg_rating DESC NULLS LAST, m.created_at DESC
+                LIMIT 10
+                """,
+                tenant_id,
+                completed_ids or [None],
+                completed_categories or ['general']
+            )
+            
+            return [dict(r) for r in recommendations]
     
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics."""

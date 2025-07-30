@@ -555,12 +555,130 @@ class PortalAnalyticsManager:
     async def _get_engagement_metrics(self, db, tenant_id: str, portal_type: Optional[PortalType],
                                     start_date: datetime, end_date: datetime) -> Dict[str, Any]:
         """Get user engagement metrics."""
-        # Calculate bounce rate, page views per session, etc.
+        # Build query conditions
+        conditions = ["tenant_id = $1", "created_at BETWEEN $2 AND $3"]
+        params = [uuid.UUID(tenant_id), start_date, end_date]
+        
+        if portal_type:
+            conditions.append(f"portal_type = ${len(params) + 1}")
+            params.append(portal_type.value)
+        
+        where_clause = " AND ".join(conditions)
+        
+        # Calculate bounce rate (sessions with only 1 page view)
+        bounce_query = f"""
+            SELECT 
+                COUNT(DISTINCT s.id) as total_sessions,
+                COUNT(DISTINCT CASE 
+                    WHEN page_view_count = 1 THEN s.id 
+                END) as bounced_sessions
+            FROM ui_portal_sessions s
+            LEFT JOIN (
+                SELECT session_id, COUNT(*) as page_view_count
+                FROM ui_portal_events
+                WHERE event_type = 'page_view'
+                GROUP BY session_id
+            ) pv ON s.id = pv.session_id
+            WHERE {where_clause}
+        """
+        
+        bounce_result = await db.fetchrow(bounce_query, *params)
+        total_sessions = bounce_result['total_sessions'] or 0
+        bounced_sessions = bounce_result['bounced_sessions'] or 0
+        bounce_rate = bounced_sessions / total_sessions if total_sessions > 0 else 0
+        
+        # Calculate average pages per session
+        pages_query = f"""
+            SELECT 
+                AVG(page_count) as avg_pages_per_session
+            FROM (
+                SELECT 
+                    s.id,
+                    COUNT(DISTINCT e.event_data->>'page_path') as page_count
+                FROM ui_portal_sessions s
+                LEFT JOIN ui_portal_events e ON s.id = e.session_id
+                WHERE {where_clause} AND e.event_type = 'page_view'
+                GROUP BY s.id
+            ) session_pages
+        """
+        
+        pages_result = await db.fetchrow(pages_query, *params)
+        avg_pages_per_session = float(pages_result['avg_pages_per_session'] or 0)
+        
+        # Calculate average time on page
+        time_query = f"""
+            SELECT 
+                AVG(EXTRACT(EPOCH FROM (next_event_time - created_at))) as avg_time_on_page
+            FROM (
+                SELECT 
+                    created_at,
+                    LEAD(created_at) OVER (PARTITION BY session_id ORDER BY created_at) as next_event_time
+                FROM ui_portal_events
+                WHERE session_id IN (
+                    SELECT id FROM ui_portal_sessions WHERE {where_clause}
+                ) AND event_type = 'page_view'
+            ) page_times
+            WHERE next_event_time IS NOT NULL
+        """
+        
+        time_result = await db.fetchrow(time_query, *params)
+        avg_time_on_page = float(time_result['avg_time_on_page'] or 0)
+        
+        # Calculate engagement score (0-100)
+        # Lower bounce rate is better, more pages per session is better, more time on page is better
+        engagement_score = self._calculate_engagement_score(
+            bounce_rate, avg_pages_per_session, avg_time_on_page
+        )
+        
+        # Get most visited pages
+        popular_pages_query = f"""
+            SELECT 
+                event_data->>'page_path' as page_path,
+                COUNT(*) as visit_count
+            FROM ui_portal_events e
+            JOIN ui_portal_sessions s ON e.session_id = s.id
+            WHERE {where_clause} AND e.event_type = 'page_view'
+            GROUP BY event_data->>'page_path'
+            ORDER BY visit_count DESC
+            LIMIT 10
+        """
+        
+        popular_pages = await db.fetch(popular_pages_query, *params)
+        
         return {
-            'bounce_rate': 0.15,  # Placeholder
-            'avg_pages_per_session': 4.2,  # Placeholder
-            'avg_time_on_page': 180  # Placeholder
+            'bounce_rate': round(bounce_rate, 3),
+            'avg_pages_per_session': round(avg_pages_per_session, 2),
+            'avg_time_on_page': round(avg_time_on_page, 1),
+            'engagement_score': round(engagement_score, 1),
+            'total_sessions': total_sessions,
+            'popular_pages': [
+                {'path': page['page_path'], 'visits': page['visit_count']} 
+                for page in popular_pages
+            ]
         }
+    
+    def _calculate_engagement_score(self, bounce_rate: float, avg_pages_per_session: float, 
+                                   avg_time_on_page: float) -> float:
+        """Calculate overall engagement score (0-100)."""
+        # Normalize each metric to 0-100 scale
+        
+        # Bounce rate: lower is better (invert the scale)
+        bounce_score = max(0, min(100, (1 - bounce_rate) * 100))
+        
+        # Pages per session: 1-2 is low, 3-5 is medium, 6+ is high
+        pages_score = min(100, (avg_pages_per_session / 6) * 100)
+        
+        # Time on page: 0-30s is low, 30-120s is medium, 120s+ is high  
+        time_score = min(100, (avg_time_on_page / 120) * 100)
+        
+        # Weighted average (bounce rate is most important)
+        engagement_score = (
+            bounce_score * 0.4 +
+            pages_score * 0.3 +
+            time_score * 0.3
+        )
+        
+        return engagement_score
 
 # Global portal managers
 portal_session_manager = PortalSessionManager()

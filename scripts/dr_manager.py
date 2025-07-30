@@ -28,6 +28,7 @@ from core_infra.disaster_recovery.dr_manager import (
 )
 from core_infra.config import get_settings
 import structlog
+import logging
 
 # Configure logging
 structlog.configure(
@@ -56,15 +57,16 @@ class DRManagerCLI:
     
     def __init__(self):
         self.settings = get_settings()
+logger = structlog.get_logger(__name__)
     
     async def start_dr(self, args):
         """Start the disaster recovery system."""
         try:
-            print("Starting disaster recovery system...")
+            logger.info("Starting disaster recovery system...")
             
             await init_disaster_recovery()
             
-            print("✅ Disaster recovery system started successfully!")
+            logger.info("Disaster recovery system started successfully!")
             
             # Show status if requested
             if args.status:
@@ -77,40 +79,40 @@ class DRManagerCLI:
             return 0
             
         except Exception as e:
-            print(f"❌ Failed to start DR system: {e}")
+            logger.error(f"Failed to start DR system: {e}")
             logger.error("DR system startup failed", error=str(e))
             return 1
     
     async def stop_dr(self, args):
         """Stop the disaster recovery system."""
         try:
-            print("Stopping disaster recovery system...")
+            logger.info("Stopping disaster recovery system...")
             
             await shutdown_disaster_recovery()
             
-            print("✅ Disaster recovery system stopped successfully!")
+            logger.info("Disaster recovery system stopped successfully!")
             return 0
             
         except Exception as e:
-            print(f"❌ Failed to stop DR system: {e}")
+            logger.error(f"Failed to stop DR system: {e}")
             logger.error("DR system shutdown failed", error=str(e))
             return 1
     
     async def show_status(self, args):
         """Show comprehensive DR status."""
         try:
-            print("RegulensAI Disaster Recovery Status")
-            print("=" * 50)
+                    logger.info("RegulensAI Disaster Recovery Status")
+        logger.info("=" * 50)
             
             status = await get_dr_status()
             
             # Overall status
-            print(f"\n🎯 Overall Status: {status['overall_status'].upper()}")
-            print(f"🏥 Health Score: {status['health_score']:.1f}/100")
-            print(f"🕐 Last Updated: {status['last_updated']}")
+                    logger.info(f"Overall Status: {status['overall_status'].upper()}")
+        logger.info(f"Health Score: {status['health_score']:.1f}/100")
+        logger.info(f"Last Updated: {status['last_updated']}")
             
             # Component status
-            print(f"\n📊 Component Status:")
+            logger.info("Component Status:")
             component_data = []
             headers = ['Component', 'Status', 'Priority', 'RTO', 'RPO', 'Last Test', 'Auto Recovery']
             
@@ -125,11 +127,11 @@ class DRManagerCLI:
                     "Yes" if comp_data['automated_recovery'] else "No"
                 ])
             
-            print(tabulate.tabulate(component_data, headers=headers, tablefmt='grid'))
+            logger.info("\n" + tabulate.tabulate(component_data, headers=headers, tablefmt='grid'))
             
             # Recent events
             if status['recent_events']:
-                print(f"\n🚨 Recent Events (Last 10):")
+                logger.info("Recent Events (Last 10):")
                 event_data = []
                 event_headers = ['Time', 'Component', 'Type', 'Severity', 'Description']
                 
@@ -142,11 +144,11 @@ class DRManagerCLI:
                         event['description'][:50] + '...' if len(event['description']) > 50 else event['description']
                     ])
                 
-                print(tabulate.tabulate(event_data, headers=event_headers, tablefmt='grid'))
+                logger.info("\n" + tabulate.tabulate(event_data, headers=event_headers, tablefmt='grid'))
             
             # Recent tests
             if status['recent_tests']:
-                print(f"\n🧪 Recent Tests (Last 5):")
+                logger.info("Recent Tests (Last 5):")
                 test_data = []
                 test_headers = ['Component', 'Test Type', 'Status', 'Duration', 'RTO Met', 'RPO Met']
                 
@@ -160,66 +162,66 @@ class DRManagerCLI:
                         "✓" if test['rpo_achieved'] else "✗" if test['rpo_achieved'] is False else 'N/A'
                     ])
                 
-                print(tabulate.tabulate(test_data, headers=test_headers, tablefmt='grid'))
+                logger.info("\n" + tabulate.tabulate(test_data, headers=test_headers, tablefmt='grid'))
             
             return 0
             
         except Exception as e:
-            print(f"❌ Failed to get DR status: {e}")
+            logger.error(f"Failed to get DR status: {e}")
             logger.error("DR status check failed", error=str(e))
             return 1
     
     async def run_component_test(self, args):
         """Run DR test for specific component."""
         try:
-            print(f"Running {args.test_type} test for {args.component}...")
+            logger.info(f"Running {args.test_type} test for {args.component}...")
             
             result = await run_dr_test(args.component, args.test_type, args.dry_run)
             
-            print(f"\n🧪 Test Results:")
-            print(f"Test ID: {result.test_id}")
-            print(f"Component: {result.component}")
-            print(f"Test Type: {result.test_type}")
-            print(f"Status: {result.status.upper()}")
-            print(f"Duration: {result.duration_minutes:.2f} minutes")
+                    logger.info("Test Results:")
+        logger.info(f"Test ID: {result.test_id}")
+        logger.info(f"Component: {result.component}")
+        logger.info(f"Test Type: {result.test_type}")
+        logger.info(f"Status: {result.status.upper()}")
+        logger.info(f"Duration: {result.duration_minutes:.2f} minutes")
             
             if result.rto_achieved is not None:
-                print(f"RTO Achieved: {'✓' if result.rto_achieved else '✗'}")
+                logger.info(f"RTO Achieved: {'Yes' if result.rto_achieved else 'No'}")
             
             if result.rpo_achieved is not None:
-                print(f"RPO Achieved: {'✓' if result.rpo_achieved else '✗'}")
+                logger.info(f"RPO Achieved: {'Yes' if result.rpo_achieved else 'No'}")
             
             # Validation results
             if result.validation_results:
-                print(f"\n📋 Validation Results:")
+                logger.info("Validation Results:")
                 for check, passed in result.validation_results.items():
                     status = "✓ PASS" if passed else "✗ FAIL"
-                    print(f"  {check}: {status}")
+                    logger.info(f"  {check}: {status}")
             
             # Error messages
             if result.error_messages:
-                print(f"\n❌ Errors:")
+                logger.error("Errors:")
                 for error in result.error_messages:
-                    print(f"  • {error}")
+                    logger.error(f"  - {error}")
             
             # Recommendations
             if result.recommendations:
-                print(f"\n💡 Recommendations:")
+                logger.info("Recommendations:")
                 for rec in result.recommendations:
-                    print(f"  • {rec}")
+                    logger.info(f"  - {rec}")
             
             return 0 if result.status == "passed" else 1
             
         except Exception as e:
-            print(f"❌ Failed to run component test: {e}")
+            logger.error(f"Failed to run component test: {e}")
             logger.error("Component test failed", error=str(e))
             return 1
     
     async def run_full_test(self, args):
         """Run full DR test suite."""
         try:
-            print("Running full disaster recovery test suite...")
-            print(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE TEST'}")
+                    logger.info("Running full disaster recovery test suite...")
+        logger.info(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE TEST'}")
             
             results = await run_full_dr_test(args.dry_run)
             
@@ -228,14 +230,14 @@ class DRManagerCLI:
             passed_tests = sum(1 for r in results.values() if r.status == "passed")
             failed_tests = total_tests - passed_tests
             
-            print(f"\n📊 Full DR Test Summary:")
-            print(f"Total Tests: {total_tests}")
-            print(f"Passed: {passed_tests}")
-            print(f"Failed: {failed_tests}")
-            print(f"Success Rate: {(passed_tests/total_tests*100):.1f}%")
+                    logger.info("Full DR Test Summary:")
+        logger.info(f"Total Tests: {total_tests}")
+        logger.info(f"Passed: {passed_tests}")
+        logger.info(f"Failed: {failed_tests}")
+        logger.info(f"Success Rate: {(passed_tests/total_tests*100):.1f}%")
             
             # Detailed results
-            print(f"\n📋 Detailed Results:")
+            logger.info("Detailed Results:")
             result_data = []
             headers = ['Test', 'Component', 'Status', 'Duration', 'RTO', 'RPO']
             
@@ -249,59 +251,59 @@ class DRManagerCLI:
                     "✓" if result.rpo_achieved else "✗" if result.rpo_achieved is False else 'N/A'
                 ])
             
-            print(tabulate.tabulate(result_data, headers=headers, tablefmt='grid'))
+            logger.info("\n" + tabulate.tabulate(result_data, headers=headers, tablefmt='grid'))
             
             # Failed tests details
             failed_results = [r for r in results.values() if r.status == "failed"]
             if failed_results:
-                print(f"\n❌ Failed Tests Details:")
+                logger.error("Failed Tests Details:")
                 for result in failed_results:
-                    print(f"\n{result.component} - {result.test_type}:")
+                    logger.error(f"{result.component} - {result.test_type}:")
                     for error in result.error_messages:
-                        print(f"  • {error}")
+                        logger.error(f"  - {error}")
                     for rec in result.recommendations:
-                        print(f"  💡 {rec}")
+                        logger.info(f"  Recommendation: {rec}")
             
             return 0 if failed_tests == 0 else 1
             
         except Exception as e:
-            print(f"❌ Failed to run full DR test: {e}")
+            logger.error(f"Failed to run full DR test: {e}")
             logger.error("Full DR test failed", error=str(e))
             return 1
     
     async def run_test_suite(self, args):
         """Run automated test suite."""
         try:
-            print("Running automated DR test suite...")
+            logger.info("Running automated DR test suite...")
             
             # Run backup validation for all components
             components = ['database', 'api_services', 'web_ui', 'monitoring', 'file_storage']
             
             for component in components:
-                print(f"\n🔍 Testing {component}...")
+                logger.info(f"Testing {component}...")
                 
                 # Backup validation
                 backup_result = await run_dr_test(component, 'backup_validation', True)
                 status = "✓" if backup_result.status == "passed" else "✗"
-                print(f"  Backup Validation: {status}")
+                logger.info(f"  Backup Validation: {status}")
                 
                 # Failover test (dry run only)
                 failover_result = await run_dr_test(component, 'failover_test', True)
                 status = "✓" if failover_result.status == "passed" else "✗"
-                print(f"  Failover Test: {status}")
+                logger.info(f"  Failover Test: {status}")
             
-            print("\n✅ Automated test suite completed!")
+            logger.info("Automated test suite completed!")
             return 0
             
         except Exception as e:
-            print(f"❌ Failed to run test suite: {e}")
+            logger.error(f"Failed to run test suite: {e}")
             logger.error("Test suite failed", error=str(e))
             return 1
     
     async def export_status(self, args):
         """Export DR status to file."""
         try:
-            print(f"Exporting DR status to {args.output}...")
+            logger.info(f"Exporting DR status to {args.output}...")
             
             status = await get_dr_status()
             
@@ -312,11 +314,11 @@ class DRManagerCLI:
             with open(args.output, 'w') as f:
                 json.dump(status, f, indent=2, default=str)
             
-            print(f"✅ DR status exported to {args.output}")
+            logger.info(f"DR status exported to {args.output}")
             return 0
             
         except Exception as e:
-            print(f"❌ Failed to export status: {e}")
+            logger.error(f"Failed to export status: {e}")
             logger.error("Status export failed", error=str(e))
             return 1
     
@@ -414,7 +416,7 @@ Examples:
     elif args.command == "export":
         return await cli.export_status(args)
     else:
-        print(f"Unknown command: {args.command}")
+        logger.error(f"Unknown command: {args.command}")
         return 1
 
 

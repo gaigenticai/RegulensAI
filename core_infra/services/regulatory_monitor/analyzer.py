@@ -670,14 +670,27 @@ Compliance Guidance:
     async def _update_model_run_status(self, model_run_id: str, status: str, error_message: str = None):
         """Update AI model run status."""
         async with get_database() as db:
+            # First get the start time of the model run
+            start_time_query = """
+                SELECT created_at FROM ai_model_runs WHERE id = $1
+            """
+            start_time_row = await db.fetchrow(start_time_query, model_run_id)
+            
+            # Calculate actual processing time
+            if start_time_row and start_time_row['created_at']:
+                start_time = start_time_row['created_at']
+                end_time = datetime.utcnow()
+                processing_time = int((end_time - start_time).total_seconds() * 1000)  # Convert to milliseconds
+            else:
+                processing_time = 0  # Default if we can't calculate
+            
+            # Update the model run with status and processing time
             query = """
                 UPDATE ai_model_runs 
-                SET status = $1, error_message = $2, processing_time_ms = $3
-                WHERE id = $4
+                SET status = $1, error_message = $2, processing_time_ms = $3, updated_at = $4
+                WHERE id = $5
             """
-            # Calculate processing time (simplified)
-            processing_time = 5000  # Placeholder
-            await db.execute(query, status, error_message, processing_time, model_run_id)
+            await db.execute(query, status, error_message, processing_time, datetime.utcnow(), model_run_id)
     
     async def _store_analysis_results(self, document_id: str, model_run_id: str, 
                                     obligations: List[RegulatoryObligation],

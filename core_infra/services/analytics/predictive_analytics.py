@@ -286,7 +286,8 @@ class PredictiveAnalyticsService:
         tenant_id: str,
         target_variable: str,
         features: List[str],
-        algorithm: str = 'random_forest'
+        algorithm: str = 'random_forest',
+        user_id: str = None
     ) -> Dict[str, Any]:
         """
         Create and train a new predictive model.
@@ -370,7 +371,7 @@ class PredictiveAnalyticsService:
                 'feature_importance': json.dumps(feature_importance),
                 'model_status': 'production' if metrics['r2'] > 0.7 else 'testing',
                 'model_version': '1.0',
-                'created_by': tenant_id  # TODO: Use actual user ID
+                'created_by': user_id if user_id else tenant_id
             }
             
             result = self.supabase.table('predictive_models').insert(model_data).execute()

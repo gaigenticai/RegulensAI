@@ -405,24 +405,39 @@ def secure_training_endpoint(
             try:
                 # IP whitelist check
                 if check_ip_whitelist:
-                    # client_ip = get_client_ip_from_request()
-                    # if not security_service.validate_ip_access(client_ip):
-                    #     raise HTTPException(status_code=403, detail="IP address not allowed")
-                    pass
+                    from starlette.requests import Request
+                    request = kwargs.get('request')
+                    if request and isinstance(request, Request):
+                        client_ip = request.client.host if request.client else None
+                        if client_ip and not await security_service.validate_ip_access(client_ip):
+                            from fastapi import HTTPException
+                            raise HTTPException(status_code=403, detail="IP address not allowed")
                 
                 # Execute the original function
                 result = await func(*args, **kwargs)
                 
                 # Audit the action if specified
                 if audit_action:
-                    # user_id = get_current_user_id()
-                    # await security_service.audit_training_access(
-                    #     user_id=user_id,
-                    #     action=audit_action,
-                    #     resource_type='training_endpoint',
-                    #     details={'endpoint': func.__name__}
-                    # )
-                    pass
+                    # Try to get user_id from various sources
+                    user_id = None
+                    
+                    # Check if user_id is in kwargs (common pattern)
+                    if 'user_id' in kwargs:
+                        user_id = kwargs['user_id']
+                    # Check if there's a current_user object
+                    elif 'current_user' in kwargs and hasattr(kwargs['current_user'], 'id'):
+                        user_id = kwargs['current_user'].id
+                    # Check if there's a request with user info
+                    elif 'request' in kwargs and hasattr(kwargs['request'], 'state'):
+                        user_id = getattr(kwargs['request'].state, 'user_id', None)
+                    
+                    if user_id:
+                        await security_service.audit_training_access(
+                            user_id=user_id,
+                            action=audit_action,
+                            resource_type='training_endpoint',
+                            details={'endpoint': func.__name__}
+                        )
                 
                 return result
                 

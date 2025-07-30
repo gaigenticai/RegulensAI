@@ -286,7 +286,8 @@ class RiskScoringService:
         model_type: str,
         tenant_id: str,
         training_data: Optional[Dict] = None,
-        algorithm: str = 'random_forest'
+        algorithm: str = 'random_forest',
+        user_id: str = None
     ) -> Dict[str, Any]:
         """
         Train a new risk scoring model.
@@ -389,7 +390,7 @@ class RiskScoringService:
                 'accuracy_threshold': settings.RISK_MODEL_ACCURACY_THRESHOLD,
                 'current_accuracy': metrics['accuracy'],
                 'model_drift_score': 0.0,
-                'created_by': tenant_id  # TODO: Use actual user ID
+                'created_by': user_id if user_id else tenant_id
             }
             
             # Insert model record
@@ -655,11 +656,55 @@ class RiskScoringService:
     
     def _detect_anomalies(self, features: Dict, transaction: Dict, tenant_id: str) -> Dict[str, Any]:
         """Detect anomalies in transaction."""
+        # Amount anomaly detection
+        amount = features.get('amount', 0)
+        avg_amount = features.get('avg_transaction_amount', 0)
+        amount_anomaly = False
+        if avg_amount > 0:
+            amount_anomaly = amount > (avg_amount * 3)  # 3x average is anomalous
+        else:
+            amount_anomaly = amount > 100000
+        
+        # Frequency anomaly detection
+        frequency_anomaly = self._detect_frequency_anomaly(features, transaction)
+        
         return {
-            'amount_anomaly': features.get('amount', 0) > 100000,
+            'amount_anomaly': amount_anomaly,
             'timing_anomaly': features.get('is_night_time', False),
-            'frequency_anomaly': False  # Placeholder
+            'frequency_anomaly': frequency_anomaly
         }
+    
+    def _detect_frequency_anomaly(self, features: Dict, transaction: Dict) -> bool:
+        """Detect frequency-based anomalies in transaction patterns."""
+        # Check for sudden burst of transactions
+        tx_count_1h = features.get('transaction_count_1h', 0)
+        tx_count_24h = features.get('transaction_count_24h', 0)
+        tx_count_7d = features.get('transaction_count_7d', 0)
+        
+        # Calculate expected hourly rate based on historical data
+        if tx_count_7d > 0:
+            avg_hourly_rate_7d = tx_count_7d / (7 * 24)
+            
+            # Detect if current hour has significantly more transactions
+            if tx_count_1h > max(5, avg_hourly_rate_7d * 5):  # 5x normal rate
+                return True
+        
+        # Check for rapid consecutive transactions
+        if tx_count_1h > 10:  # More than 10 transactions in an hour
+            return True
+        
+        # Check daily pattern anomaly
+        if tx_count_24h > 0 and tx_count_7d > 0:
+            avg_daily_rate = tx_count_7d / 7
+            if tx_count_24h > max(20, avg_daily_rate * 3):  # 3x daily average
+                return True
+        
+        # Check for velocity changes
+        velocity_change = features.get('velocity_change', 0)
+        if abs(velocity_change) > 200:  # 200% change in transaction velocity
+            return True
+        
+        return False
     
     def _make_auto_decision(self, overall_score: float, risk_factors: List[str]) -> str:
         """Make automated decision based on risk score."""

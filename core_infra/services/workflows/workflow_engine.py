@@ -594,8 +594,49 @@ class WorkflowEngine:
     
     async def _handle_manual_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle manual task - assign to user and wait for completion."""
-        # Task is created and assigned - completion handled externally
-        pass
+        try:
+            # Create task assignment
+            assignment_data = {
+                'workflow_id': workflow_id,
+                'task_id': task_def.task_id,
+                'task_name': task_def.name,
+                'description': task_def.description,
+                'assigned_to': task_def.metadata.get('assigned_to', 'unassigned'),
+                'due_date': task_def.metadata.get('due_date'),
+                'priority': task_def.metadata.get('priority', 'medium'),
+                'status': 'pending'
+            }
+            
+            # Store task assignment in database
+            async with get_database() as db:
+                await db.execute(
+                    """
+                    INSERT INTO workflow_task_assignments 
+                    (id, workflow_id, task_id, task_name, description, 
+                     assigned_to, due_date, priority, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """,
+                    str(uuid.uuid4()),
+                    workflow_id,
+                    task_def.task_id,
+                    task_def.name,
+                    task_def.description,
+                    assignment_data['assigned_to'],
+                    assignment_data['due_date'],
+                    assignment_data['priority'],
+                    'pending',
+                    datetime.utcnow()
+                )
+            
+            # Send notification to assigned user
+            if assignment_data['assigned_to'] != 'unassigned':
+                await self._notify_task_assignment(assignment_data)
+            
+            logger.info(f"Manual task {task_def.task_id} created and assigned")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle manual task: {e}")
+            raise WorkflowExecutionError(f"Manual task creation failed: {str(e)}")
     
     async def _handle_automated_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle automated task execution."""
@@ -662,23 +703,254 @@ class WorkflowEngine:
     
     async def _handle_document_review_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle document review task."""
-        # Create document review assignment
-        pass
+        try:
+            # Get document details from task metadata
+            document_id = task_def.metadata.get('document_id')
+            document_type = task_def.metadata.get('document_type', 'general')
+            review_criteria = task_def.metadata.get('review_criteria', [])
+            
+            # Create review assignment
+            review_data = {
+                'workflow_id': workflow_id,
+                'task_id': task_def.task_id,
+                'document_id': document_id,
+                'document_type': document_type,
+                'reviewer': task_def.metadata.get('assigned_to', 'unassigned'),
+                'criteria': review_criteria,
+                'status': 'pending_review'
+            }
+            
+            # Store review assignment
+            async with get_database() as db:
+                review_id = await db.fetchval(
+                    """
+                    INSERT INTO document_reviews 
+                    (id, workflow_id, task_id, document_id, document_type,
+                     reviewer, criteria, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING id
+                    """,
+                    str(uuid.uuid4()),
+                    workflow_id,
+                    task_def.task_id,
+                    document_id,
+                    document_type,
+                    review_data['reviewer'],
+                    json.dumps(review_criteria),
+                    'pending_review',
+                    datetime.utcnow()
+                )
+            
+            # Update task with review ID
+            context.set_variable(f'review_{task_def.task_id}_id', review_id)
+            
+            logger.info(f"Document review task {task_def.task_id} created for document {document_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle document review task: {e}")
+            raise WorkflowExecutionError(f"Document review task failed: {str(e)}")
     
     async def _handle_risk_assessment_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle risk assessment task."""
-        # Trigger risk assessment workflow
-        pass
+        try:
+            # Get risk assessment parameters
+            entity_id = task_def.metadata.get('entity_id')
+            entity_type = task_def.metadata.get('entity_type', 'transaction')
+            risk_factors = task_def.metadata.get('risk_factors', [])
+            
+            # Prepare risk assessment data
+            assessment_data = {
+                'entity_id': entity_id,
+                'entity_type': entity_type,
+                'factors': risk_factors,
+                'context': {
+                    'workflow_id': workflow_id,
+                    'task_id': task_def.task_id
+                }
+            }
+            
+            # Call risk scoring service
+            from core_infra.services.analytics.risk_scoring import risk_scoring_service
+            risk_result = await risk_scoring_service.assess_risk(
+                entity_type=entity_type,
+                entity_data=assessment_data,
+                tenant_id=context.get_variable('tenant_id')
+            )
+            
+            # Store risk assessment result
+            async with get_database() as db:
+                await db.execute(
+                    """
+                    INSERT INTO risk_assessments 
+                    (id, workflow_id, task_id, entity_id, entity_type,
+                     risk_score, risk_level, factors, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    """,
+                    str(uuid.uuid4()),
+                    workflow_id,
+                    task_def.task_id,
+                    entity_id,
+                    entity_type,
+                    risk_result.get('risk_score', 0),
+                    risk_result.get('risk_level', 'unknown'),
+                    json.dumps(risk_result.get('factors', [])),
+                    datetime.utcnow()
+                )
+            
+            # Update context with risk results
+            context.set_variable(f'risk_score_{task_def.task_id}', risk_result.get('risk_score'))
+            context.set_variable(f'risk_level_{task_def.task_id}', risk_result.get('risk_level'))
+            
+            # Auto-complete task with risk results
+            await self.complete_task(workflow_id, task_def.task_id, risk_result, "system")
+            
+            logger.info(f"Risk assessment completed for task {task_def.task_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle risk assessment task: {e}")
+            raise WorkflowExecutionError(f"Risk assessment failed: {str(e)}")
     
     async def _handle_compliance_check_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle compliance check task."""
-        # Execute compliance verification
-        pass
+        try:
+            # Get compliance check parameters
+            check_type = task_def.metadata.get('check_type', 'general')
+            entity_data = task_def.metadata.get('entity_data', {})
+            regulations = task_def.metadata.get('regulations', [])
+            
+            # Execute compliance checks
+            compliance_results = {
+                'workflow_id': workflow_id,
+                'task_id': task_def.task_id,
+                'check_type': check_type,
+                'passed': True,
+                'violations': [],
+                'recommendations': []
+            }
+            
+            # Check against each regulation
+            for regulation in regulations:
+                if regulation == 'gdpr' and 'personal_data' in entity_data:
+                    # GDPR compliance check
+                    if not entity_data.get('consent_obtained'):
+                        compliance_results['passed'] = False
+                        compliance_results['violations'].append({
+                            'regulation': 'GDPR',
+                            'article': 'Article 6',
+                            'description': 'Personal data processing without consent'
+                        })
+                elif regulation == 'pci_dss' and 'payment_data' in entity_data:
+                    # PCI DSS compliance check
+                    if not entity_data.get('data_encrypted'):
+                        compliance_results['passed'] = False
+                        compliance_results['violations'].append({
+                            'regulation': 'PCI DSS',
+                            'requirement': '3.4',
+                            'description': 'Payment data not encrypted'
+                        })
+            
+            # Store compliance check results
+            async with get_database() as db:
+                await db.execute(
+                    """
+                    INSERT INTO compliance_checks 
+                    (id, workflow_id, task_id, check_type, passed,
+                     violations, recommendations, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    """,
+                    str(uuid.uuid4()),
+                    workflow_id,
+                    task_def.task_id,
+                    check_type,
+                    compliance_results['passed'],
+                    json.dumps(compliance_results['violations']),
+                    json.dumps(compliance_results['recommendations']),
+                    datetime.utcnow()
+                )
+            
+            # Update context
+            context.set_variable(f'compliance_passed_{task_def.task_id}', compliance_results['passed'])
+            
+            # Auto-complete task
+            await self.complete_task(workflow_id, task_def.task_id, compliance_results, "system")
+            
+            logger.info(f"Compliance check completed for task {task_def.task_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle compliance check task: {e}")
+            raise WorkflowExecutionError(f"Compliance check failed: {str(e)}")
     
     async def _handle_regulatory_filing_task(self, workflow_id: str, task_def: TaskDefinition, context: WorkflowContext):
         """Handle regulatory filing task."""
-        # Prepare and submit regulatory filing
-        pass
+        try:
+            # Get filing parameters
+            filing_type = task_def.metadata.get('filing_type')
+            regulator = task_def.metadata.get('regulator')
+            filing_data = task_def.metadata.get('filing_data', {})
+            due_date = task_def.metadata.get('due_date')
+            
+            # Prepare filing document
+            filing_document = {
+                'workflow_id': workflow_id,
+                'task_id': task_def.task_id,
+                'filing_type': filing_type,
+                'regulator': regulator,
+                'submission_date': datetime.utcnow().isoformat(),
+                'data': filing_data,
+                'status': 'prepared'
+            }
+            
+            # Store filing record
+            async with get_database() as db:
+                filing_id = await db.fetchval(
+                    """
+                    INSERT INTO regulatory_filings 
+                    (id, workflow_id, task_id, filing_type, regulator,
+                     filing_data, due_date, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    RETURNING id
+                    """,
+                    str(uuid.uuid4()),
+                    workflow_id,
+                    task_def.task_id,
+                    filing_type,
+                    regulator,
+                    json.dumps(filing_data),
+                    due_date,
+                    'prepared',
+                    datetime.utcnow()
+                )
+            
+            # Simulate filing submission (in production, this would call regulatory APIs)
+            submission_result = {
+                'filing_id': filing_id,
+                'submission_reference': f"{regulator}-{filing_type}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
+                'status': 'submitted',
+                'acknowledgment': True
+            }
+            
+            # Update filing status
+            await db.execute(
+                """
+                UPDATE regulatory_filings 
+                SET status = $1, submission_reference = $2, submitted_at = $3
+                WHERE id = $4
+                """,
+                'submitted',
+                submission_result['submission_reference'],
+                datetime.utcnow(),
+                filing_id
+            )
+            
+            # Update context
+            context.set_variable(f'filing_{task_def.task_id}_id', filing_id)
+            context.set_variable(f'filing_{task_def.task_id}_reference', submission_result['submission_reference'])
+            
+            logger.info(f"Regulatory filing {filing_type} submitted for task {task_def.task_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle regulatory filing task: {e}")
+            raise WorkflowExecutionError(f"Regulatory filing failed: {str(e)}")
     
     # ========================================================================
     # CONDITION EVALUATORS

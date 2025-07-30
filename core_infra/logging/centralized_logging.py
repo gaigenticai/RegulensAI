@@ -7,6 +7,7 @@ import asyncio
 import json
 import time
 import uuid
+import logging as stdlib_logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional, Union
 from enum import Enum
@@ -17,6 +18,9 @@ import aiofiles
 import aiohttp
 from elasticsearch import AsyncElasticsearch
 from elasticsearch.exceptions import ConnectionError, RequestError
+
+# Internal logger for the logging module itself
+internal_logger = stdlib_logging.getLogger(__name__)
 
 from core_infra.config import get_settings
 from core_infra.exceptions import SystemException
@@ -184,7 +188,7 @@ class LogShipper:
                 break
             except Exception as e:
                 # Log error but continue running
-                print(f"Error in periodic flush: {e}")
+                internal_logger.error(f"Error in periodic flush: {e}")
     
     async def _flush_logs(self):
         """Flush buffered logs to all configured destinations."""
@@ -233,10 +237,10 @@ class LogShipper:
                 # Check for errors
                 if response.get('errors'):
                     error_count = sum(1 for item in response['items'] if 'error' in item.get('index', {}))
-                    print(f"Elasticsearch bulk index errors: {error_count}/{len(logs)}")
+                    internal_logger.warning(f"Elasticsearch bulk index errors: {error_count}/{len(logs)}")
         
         except Exception as e:
-            print(f"Failed to ship logs to Elasticsearch: {e}")
+            internal_logger.error(f"Failed to ship logs to Elasticsearch: {e}")
             # Re-add logs to buffer for retry
             self.buffer.extend(logs)
     
@@ -263,7 +267,7 @@ class LogShipper:
                         await f.write(log_entry.to_json() + '\n')
         
         except Exception as e:
-            print(f"Failed to ship logs to file: {e}")
+            internal_logger.error(f"Failed to ship logs to file: {e}")
     
     async def _ship_to_external_services(self, logs: List[LogEntry]):
         """Ship logs to external services (webhooks, SIEM, etc.)."""
@@ -305,10 +309,10 @@ class LogShipper:
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status >= 400:
-                        print(f"Webhook error: {response.status} - {await response.text()}")
+                        internal_logger.error(f"Webhook error: {response.status} - {await response.text()}")
         
         except Exception as e:
-            print(f"Failed to ship logs to webhook: {e}")
+            internal_logger.error(f"Failed to ship logs to webhook: {e}")
     
     async def _ship_to_siem(self, logs: List[LogEntry], siem_config: Dict[str, Any]):
         """Ship logs to SIEM system."""
@@ -356,9 +360,9 @@ class LogShipper:
         """Test Elasticsearch connection."""
         try:
             await self.elasticsearch_client.ping()
-            print("Elasticsearch connection successful")
+            internal_logger.info("Elasticsearch connection successful")
         except Exception as e:
-            print(f"Elasticsearch connection failed: {e}")
+            internal_logger.error(f"Elasticsearch connection failed: {e}")
 
 
 class CentralizedLogger:

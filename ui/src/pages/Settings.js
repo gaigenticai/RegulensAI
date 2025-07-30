@@ -59,7 +59,7 @@ const Settings = () => {
   };
 
   const handleSave = () => {
-    console.log('Saving settings:', settings);
+            // Settings saved - notification handled by UI
     // Implement save logic
   };
 

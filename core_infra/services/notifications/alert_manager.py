@@ -440,8 +440,43 @@ class AlertManager:
     
     async def _route_alert(self, alert: Alert):
         """Route alert to appropriate team/user."""
-        # Implement alert routing logic based on type, severity, etc.
-        pass
+        try:
+            # Route based on alert type and severity
+            routing_rules = {
+                'security': 'security-team',
+                'compliance': 'compliance-team',
+                'performance': 'ops-team',
+                'availability': 'ops-team',
+                'data_integrity': 'data-team'
+            }
+            
+            # Get team for alert type
+            team = routing_rules.get(alert.alert_type, 'ops-team')
+            
+            # Add routing metadata
+            alert.metadata['assigned_team'] = team
+            
+            # For critical alerts, also route to management
+            if alert.severity == AlertSeverity.CRITICAL:
+                alert.metadata['escalated_to'] = 'management'
+                
+            # Update alert in database with routing info
+            async with get_database() as db:
+                await db.execute(
+                    """
+                    UPDATE alerts 
+                    SET metadata = metadata || $1
+                    WHERE id = $2
+                    """,
+                    json.dumps({'assigned_team': team}),
+                    alert.id
+                )
+                
+            logger.info(f"Alert {alert.id} routed to {team}")
+            
+        except Exception as e:
+            logger.error(f"Failed to route alert {alert.id}: {e}")
+            # Continue processing even if routing fails
     
     async def _send_alert_notifications(self, alert: Alert):
         """Send notifications for new alert."""
@@ -467,18 +502,112 @@ class AlertManager:
     
     async def _schedule_escalation(self, alert: Alert):
         """Schedule alert escalation if not acknowledged."""
-        # Implement escalation scheduling logic
-        pass
+        try:
+            # Define escalation timeframes based on severity
+            escalation_delays = {
+                AlertSeverity.CRITICAL: timedelta(minutes=15),
+                AlertSeverity.HIGH: timedelta(minutes=30),
+                AlertSeverity.MEDIUM: timedelta(hours=1),
+                AlertSeverity.LOW: timedelta(hours=4)
+            }
+            
+            delay = escalation_delays.get(alert.severity, timedelta(hours=1))
+            escalation_time = alert.created_at + delay
+            
+            # Store escalation schedule in database
+            async with get_database() as db:
+                await db.execute(
+                    """
+                    INSERT INTO alert_escalations (
+                        id, alert_id, scheduled_time, escalation_level, status
+                    ) VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (alert_id, escalation_level) DO UPDATE
+                    SET scheduled_time = $3, status = $5
+                    """,
+                    str(uuid.uuid4()),
+                    alert.id,
+                    escalation_time,
+                    1,  # First level escalation
+                    'scheduled'
+                )
+            
+            logger.info(f"Scheduled escalation for alert {alert.id} at {escalation_time}")
+            
+        except Exception as e:
+            logger.error(f"Failed to schedule escalation for alert {alert.id}: {e}")
+            # Non-critical - alert processing continues
     
     async def _load_alert_rules(self):
         """Load alert rules from database."""
-        # Implement alert rules loading
-        pass
+        try:
+            async with get_database() as db:
+                rules = await db.fetch(
+                    """
+                    SELECT id, name, rule_type, conditions, actions, 
+                           severity, enabled, metadata
+                    FROM alert_rules
+                    WHERE enabled = true
+                    ORDER BY severity DESC, created_at ASC
+                    """
+                )
+                
+                self.alert_rules = {}
+                for rule in rules:
+                    self.alert_rules[rule['id']] = {
+                        'name': rule['name'],
+                        'rule_type': rule['rule_type'],
+                        'conditions': json.loads(rule['conditions']) if rule['conditions'] else {},
+                        'actions': json.loads(rule['actions']) if rule['actions'] else [],
+                        'severity': rule['severity'],
+                        'metadata': json.loads(rule['metadata']) if rule['metadata'] else {}
+                    }
+                
+                logger.info(f"Loaded {len(self.alert_rules)} alert rules")
+                
+        except Exception as e:
+            logger.error(f"Failed to load alert rules: {e}")
+            # Initialize with empty rules if loading fails
+            self.alert_rules = {}
     
     async def _load_escalation_rules(self):
         """Load escalation rules from database."""
-        # Implement escalation rules loading
-        pass
+        try:
+            async with get_database() as db:
+                rules = await db.fetch(
+                    """
+                    SELECT id, alert_type, severity, escalation_levels,
+                           notification_channels, metadata
+                    FROM escalation_rules
+                    WHERE enabled = true
+                    ORDER BY severity DESC
+                    """
+                )
+                
+                self.escalation_rules = {}
+                for rule in rules:
+                    key = f"{rule['alert_type']}_{rule['severity']}"
+                    self.escalation_rules[key] = {
+                        'id': rule['id'],
+                        'levels': json.loads(rule['escalation_levels']) if rule['escalation_levels'] else [],
+                        'channels': json.loads(rule['notification_channels']) if rule['notification_channels'] else ['email'],
+                        'metadata': json.loads(rule['metadata']) if rule['metadata'] else {}
+                    }
+                
+                logger.info(f"Loaded {len(self.escalation_rules)} escalation rules")
+                
+        except Exception as e:
+            logger.error(f"Failed to load escalation rules: {e}")
+            # Initialize with default escalation rules if loading fails
+            self.escalation_rules = {
+                'default_critical': {
+                    'levels': [
+                        {'delay_minutes': 15, 'notify': ['team_lead']},
+                        {'delay_minutes': 30, 'notify': ['manager']},
+                        {'delay_minutes': 60, 'notify': ['director']}
+                    ],
+                    'channels': ['email', 'sms', 'slack']
+                }
+            }
     
     async def _load_active_alerts(self):
         """Load active alerts from database."""
