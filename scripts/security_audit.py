@@ -11,6 +11,7 @@ import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import structlog
 
 # Initialize logging
@@ -88,6 +89,22 @@ class SecurityAuditor:
             ]
         }
         
+        self.placeholder_patterns = {
+            'placeholder_comment': [
+                r'TODO',
+                r'FIXME',
+                r'XXX',
+                r'HACK',
+                r'NOTE FOR PROD',
+                r'REMOVE BEFORE DEPLOY',
+                r'DISABLED FOR PROD',
+                r'ENABLE IN PROD',
+                r'# stub',
+                r'# placeholder',
+                r'# not implemented',
+            ]
+        }
+        
         # Files to exclude from scanning
         self.exclude_patterns = [
             r'\.git/',
@@ -111,8 +128,7 @@ class SecurityAuditor:
             r'SecretStr',  # Pydantic SecretStr
             r'get_secret_value\(\)',  # SecretStr access
             r'# Example:',  # Comments with examples
-            r'# TODO:',  # TODO comments
-            r'your-.*-key',  # Placeholder values
+            r'your-.*-key',  # Ignore placeholder keys in docs/examples
             r'example\.com',  # Example domains
             r'localhost',  # Local development
         ]
@@ -126,6 +142,9 @@ class SecurityAuditor:
         
         # Scan for vulnerabilities
         self._scan_vulnerabilities()
+        
+        # Scan for placeholder comments
+        self._scan_for_placeholders()
         
         # Check file permissions
         self._check_file_permissions()
@@ -201,6 +220,34 @@ class SecurityAuditor:
                                 
             except Exception as e:
                 logger.error(f"Error scanning file {file_path}: {e}")
+
+    def _scan_for_placeholders(self):
+        """Scan for placeholder comments like TODO, FIXME, etc."""
+        logger.info("Scanning for placeholder comments...")
+        
+        for file_path in self._get_source_files():
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                
+                for line_num, line in enumerate(lines, 1):
+                    # Check for placeholder patterns
+                    for category, patterns in self.placeholder_patterns.items():
+                        for pattern in patterns:
+                            if re.search(pattern, line, re.IGNORECASE):
+                                self.findings.append(SecurityFinding(
+                                    severity='low',
+                                    category=category,
+                                    file_path=str(file_path),
+                                    line_number=line_num,
+                                    description=f'Placeholder comment detected: "{pattern}"',
+                                    evidence=line.strip(),
+                                    recommendation='Implement the required functionality or remove the placeholder comment.'
+                                ))
+                                # Found one, no need to check other patterns on this line for this category
+                                break
+            except Exception as e:
+                logger.error(f"Error scanning file {file_path} for placeholders: {e}")
     
     def _check_file_permissions(self):
         """Check for insecure file permissions."""
@@ -353,7 +400,7 @@ class SecurityAuditor:
         security_score = max(0, 100 - (critical_count * 25) - (high_count * 10) - (medium_count * 5) - (low_count * 1))
         
         report = {
-            'audit_timestamp': str(datetime.utcnow()),
+            'audit_timestamp': str(datetime.now(timezone.utc)),
             'project_root': str(self.project_root),
             'summary': {
                 'total_issues': total_issues,

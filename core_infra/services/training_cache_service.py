@@ -10,12 +10,14 @@ from datetime import datetime, timedelta
 from functools import wraps
 import asyncio
 import structlog
+import logging
 
-from core_infra.utils.cache import CacheManager, cache_key_builder
+from core_infra.performance.caching import CacheManager
 from core_infra.database.models import TrainingModule, TrainingEnrollment, User
 from core_infra.config import settings
 
 logger = structlog.get_logger(__name__)
+IS_DEBUG = logger.isEnabledFor(logging.DEBUG)
 
 
 class TrainingCacheService:
@@ -69,7 +71,8 @@ class TrainingCacheService:
             
             cached_data = await self.cache_manager.get(cache_key)
             if cached_data:
-                logger.debug("Cache hit for modules", cache_key=cache_key)
+                if IS_DEBUG:
+                    logger.debug("Cache hit for modules", cache_key=cache_key)
                 return json.loads(cached_data)
             
             return None
@@ -107,7 +110,7 @@ class TrainingCacheService:
                 ttl or self.default_ttl
             )
             
-            if success:
+            if success and IS_DEBUG:
                 logger.debug("Cached modules data", cache_key=cache_key)
             
             return success
@@ -123,7 +126,8 @@ class TrainingCacheService:
             cached_data = await self.cache_manager.get(cache_key)
             
             if cached_data:
-                logger.debug("Cache hit for module", module_id=module_id)
+                if IS_DEBUG:
+                    logger.debug("Cache hit for module", module_id=module_id)
                 return json.loads(cached_data)
             
             return None
@@ -154,7 +158,7 @@ class TrainingCacheService:
                 ttl or self.long_ttl  # Modules change less frequently
             )
             
-            if success:
+            if success and IS_DEBUG:
                 logger.debug("Cached module data", module_id=module_id)
             
             return success
@@ -170,7 +174,8 @@ class TrainingCacheService:
             cached_data = await self.cache_manager.get(cache_key)
             
             if cached_data:
-                logger.debug("Cache hit for user enrollments", user_id=user_id)
+                if IS_DEBUG:
+                    logger.debug("Cache hit for user enrollments", user_id=user_id)
                 return json.loads(cached_data)
             
             return None
@@ -201,7 +206,7 @@ class TrainingCacheService:
                 ttl or self.short_ttl  # Enrollments change more frequently
             )
             
-            if success:
+            if success and IS_DEBUG:
                 logger.debug("Cached user enrollments", user_id=user_id)
             
             return success
@@ -217,7 +222,8 @@ class TrainingCacheService:
             cached_data = await self.cache_manager.get(cache_key)
             
             if cached_data:
-                logger.debug("Cache hit for progress", enrollment_id=enrollment_id)
+                if IS_DEBUG:
+                    logger.debug("Cache hit for progress", enrollment_id=enrollment_id)
                 return json.loads(cached_data)
             
             return None
@@ -247,7 +253,7 @@ class TrainingCacheService:
                 ttl or self.short_ttl  # Progress changes frequently
             )
             
-            if success:
+            if success and IS_DEBUG:
                 logger.debug("Cached progress data", enrollment_id=enrollment_id)
             
             return success
@@ -372,7 +378,8 @@ class TrainingCacheService:
                     ttl=self.default_ttl
                 )
                 
-                logger.debug("Warmed user enrollments cache", user_id=user_id, count=len(enrollments))
+                if IS_DEBUG:
+                    logger.debug("Warmed user enrollments cache", user_id=user_id, count=len(enrollments))
                 return True
                 
         except Exception as e:
@@ -403,7 +410,8 @@ class TrainingCacheService:
                     ttl=self.long_ttl
                 )
                 
-                logger.debug("Warmed tenant modules cache", tenant_id=tenant_id, count=len(modules))
+                if IS_DEBUG:
+                    logger.debug("Warmed tenant modules cache", tenant_id=tenant_id, count=len(modules))
                 return True
                 
         except Exception as e:
@@ -446,7 +454,8 @@ class TrainingCacheService:
                             ttl=self.default_ttl
                         )
                 
-                logger.debug("Warmed user progress cache", user_id=user_id, enrollments=len(enrollments))
+                if IS_DEBUG:
+                    logger.debug("Warmed user progress cache", user_id=user_id, enrollments=len(enrollments))
                 return True
                 
         except Exception as e:
@@ -467,7 +476,8 @@ class TrainingCacheService:
                 ttl=self.default_ttl
             )
             
-            logger.debug("Warmed recommendations cache", user_id=user_id, count=len(recommendations))
+            if IS_DEBUG:
+                logger.debug("Warmed recommendations cache", user_id=user_id, count=len(recommendations))
             return True
             
         except Exception as e:
@@ -499,7 +509,8 @@ class TrainingCacheService:
                     ttl=self.long_ttl
                 )
                 
-                logger.debug("Warmed user certificates cache", user_id=user_id, count=len(certificates))
+                if IS_DEBUG:
+                    logger.debug("Warmed user certificates cache", user_id=user_id, count=len(certificates))
                 return True
                 
         except Exception as e:
@@ -589,7 +600,8 @@ def cache_training_data(
             try:
                 cached_result = await cache_svc.cache_manager.get(cache_key)
                 if cached_result:
-                    logger.debug("Cache hit", function=func.__name__, cache_key=cache_key)
+                    if IS_DEBUG:
+                        logger.debug("Cache hit", function=func.__name__, cache_key=cache_key)
                     return json.loads(cached_result)
             except Exception as e:
                 logger.warning("Cache get failed", error=str(e))
@@ -604,7 +616,8 @@ def cache_training_data(
                     json.dumps(result, default=str),
                     ttl or cache_svc.default_ttl
                 )
-                logger.debug("Cached result", function=func.__name__, cache_key=cache_key)
+                if IS_DEBUG:
+                    logger.debug("Cached result", function=func.__name__, cache_key=cache_key)
             except Exception as e:
                 logger.warning("Cache set failed", error=str(e))
             

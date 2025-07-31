@@ -708,4 +708,4 @@ memory-profiler>=0.61.0
 
 # Advanced Serialization
 orjson>=3.9.0
-msgpack>=1.0.0 
+msgpack>=1.0.0 faker

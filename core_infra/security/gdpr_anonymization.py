@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 import structlog
+from faker import Faker
 
 from core_infra.config import get_settings
 from core_infra.database.connection import get_database
@@ -21,15 +22,7 @@ from core_infra.exceptions import DataValidationException
 # Initialize logging
 logger = structlog.get_logger(__name__)
 settings = get_settings()
-
-# Faker is only imported for development/testing environments
-fake = None
-if settings.ENVIRONMENT in ['development', 'testing']:
-    try:
-        from faker import Faker
-        fake = Faker()
-    except ImportError:
-        logger.warning("Faker library not available - using deterministic pseudonyms")
+fake = Faker()
 
 @dataclass
 class AnonymizationRule:
@@ -59,9 +52,8 @@ class GDPRAnonymizer:
             ),
             'phone': AnonymizationRule(
                 field_name='phone',
-                anonymization_type='mask',
-                pattern=r'(\d{3})\d{3}(\d{4})',
-                replacement=r'\1XXX\2'
+                anonymization_type='pseudonymize',
+                preserve_format=True
             ),
             'ssn': AnonymizationRule(
                 field_name='ssn',
@@ -139,9 +131,8 @@ class GDPRAnonymizer:
             # IP addresses
             'ip_address': AnonymizationRule(
                 field_name='ip_address',
-                anonymization_type='mask',
-                pattern=r'(\d+\.\d+\.\d+)\.\d+',
-                replacement=r'\1.XXX'
+                anonymization_type='pseudonymize',
+                preserve_format=True
             ),
             
             # Free text fields
@@ -262,7 +253,7 @@ class GDPRAnonymizer:
         elif level == 'standard':
             return [
                 'ssn', 'passport_number', 'credit_card_number', 'bank_account_number',
-                'phone', 'email', 'driver_license', 'routing_number'
+                'phone', 'email', 'driver_license', 'routing_number', 'ip_address'
             ]
         elif level == 'full':
             return list(self.anonymization_rules.keys())
@@ -305,54 +296,29 @@ class GDPRAnonymizer:
     
     def _pseudonymize_value(self, value: str, rule: AnonymizationRule) -> str:
         """Apply pseudonymization to a value."""
-        # Create consistent pseudonym based on hash
         hash_key = f"{rule.field_name}_{value}"
         
         if hash_key in self.pseudonym_mapping:
             return self.pseudonym_mapping[hash_key]
         
-        # Generate deterministic hash for consistent pseudonymization
-        hash_value = hashlib.sha256(hash_key.encode()).hexdigest()
-        
-        # Generate pseudonym based on field type
-        if fake:
-            # Use faker in development/testing
-            if rule.field_name in ['first_name']:
-                pseudonym = fake.first_name()
-            elif rule.field_name in ['last_name']:
-                pseudonym = fake.last_name()
-            elif rule.field_name in ['full_name']:
-                pseudonym = fake.name()
-            elif rule.field_name in ['email']:
-                pseudonym = fake.email()
-            elif rule.field_name in ['phone']:
-                pseudonym = fake.phone_number()
-            else:
-                # Generic pseudonymization
-                if rule.preserve_length:
-                    pseudonym = self._generate_pseudonym_with_length(value, rule.preserve_format)
-                else:
-                    pseudonym = self._generate_random_string(len(value))
+        if rule.field_name == 'first_name':
+            pseudonym = fake.first_name()
+        elif rule.field_name == 'last_name':
+            pseudonym = fake.last_name()
+        elif rule.field_name == 'full_name':
+            pseudonym = fake.name()
+        elif rule.field_name == 'email':
+            pseudonym = fake.email()
+        elif rule.field_name == 'phone':
+            pseudonym = fake.phone_number()
+        elif rule.field_name == 'ip_address':
+            pseudonym = fake.ipv4()
         else:
-            # Production: Use deterministic but anonymous values
-            if rule.field_name in ['first_name']:
-                pseudonym = f"FirstName_{hash_value[:6]}"
-            elif rule.field_name in ['last_name']:
-                pseudonym = f"LastName_{hash_value[:6]}"
-            elif rule.field_name in ['full_name']:
-                pseudonym = f"Name_{hash_value[:8]}"
-            elif rule.field_name in ['email']:
-                pseudonym = f"user_{hash_value[:8]}@anonymized.com"
-            elif rule.field_name in ['phone']:
-                # Generate phone-like number from hash
-                digits = ''.join(c for c in hash_value if c.isdigit())[:7]
-                pseudonym = f"+1555{digits}"
+            if rule.preserve_length:
+                pseudonym = self._generate_pseudonym_with_length(value, rule.preserve_format)
             else:
-                # Generic pseudonymization
-                if rule.preserve_length:
-                    pseudonym = self._generate_pseudonym_with_length(value, rule.preserve_format)
-                else:
-                    pseudonym = f"ANON_{hash_value[:len(value)]}"
+                hash_value = hashlib.sha256(hash_key.encode()).hexdigest()
+                pseudonym = f"ANON_{hash_value[:len(value)]}"
         
         self.pseudonym_mapping[hash_key] = pseudonym
         return pseudonym
@@ -412,12 +378,7 @@ class GDPRAnonymizer:
     
     def _pseudonymize_name(self, name: str) -> str:
         """Generate pseudonym for a name."""
-        if fake:
-            return fake.name()
-        else:
-            # Production: Generate deterministic pseudonym
-            hash_value = hashlib.sha256(name.encode()).hexdigest()
-            return f"Name_{hash_value[:8]}"
+        return fake.name()
     
     def _generalize_amount(self, amount: float) -> str:
         """Generalize transaction amount to ranges."""

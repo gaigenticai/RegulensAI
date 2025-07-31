@@ -81,71 +81,59 @@ class EmbeddingsClient:
             Single embedding vector or list of embedding vectors
         """
         try:
-            # Determine input type
             is_batch = isinstance(text, list)
             texts = text if is_batch else [text]
             
-            # Validate input
             if not texts or (len(texts) == 1 and not texts[0].strip()):
                 raise ValueError("Empty text provided")
             
-            # Check cache for single text inputs
-            cached_embeddings = []
-            texts_to_process = []
-            cache_keys = []
+            # Separate cached from non-cached texts
+            cached_embeddings: Dict[int, List[float]] = {}
+            texts_to_process: Dict[int, str] = {}
             
-            for txt in texts:
+            for i, txt in enumerate(texts):
                 cache_key = self._get_cache_key(txt, model)
-                cache_keys.append(cache_key)
-                
                 if cache_key in self.cache:
-                    cached_embeddings.append(self.cache[cache_key])
-                    texts_to_process.append(None)  # Placeholder for cached result
+                    cached_embeddings[i] = self.cache[cache_key]
                 else:
-                    cached_embeddings.append(None)
-                    texts_to_process.append(txt)
-            
+                    texts_to_process[i] = txt
+
             # Process texts that are not cached
-            new_embeddings = []
-            if any(txt is not None for txt in texts_to_process):
-                non_cached_texts = [txt for txt in texts_to_process if txt is not None]
+            new_embeddings: Dict[int, List[float]] = {}
+            if texts_to_process:
+                indices_to_process = list(texts_to_process.keys())
+                texts_for_embedding = list(texts_to_process.values())
                 
                 if model == "auto":
                     model = self._choose_best_model()
                 
+                generated_embeddings = []
                 if model == "fastembed" and self.fastembed_model:
-                    new_embeddings = await self._generate_fastembed_embeddings(non_cached_texts)
+                    generated_embeddings = await self._generate_fastembed_embeddings(texts_for_embedding)
                 elif model == "openai" and self.openai_client:
-                    new_embeddings = await self._generate_openai_embeddings(non_cached_texts)
+                    generated_embeddings = await self._generate_openai_embeddings(texts_for_embedding)
                 else:
-                    # Fallback to available model
                     if self.fastembed_model:
-                        new_embeddings = await self._generate_fastembed_embeddings(non_cached_texts)
+                        generated_embeddings = await self._generate_fastembed_embeddings(texts_for_embedding)
                     elif self.openai_client:
-                        new_embeddings = await self._generate_openai_embeddings(non_cached_texts)
+                        generated_embeddings = await self._generate_openai_embeddings(texts_for_embedding)
                     else:
                         raise Exception("No embedding models available")
-            
-            # Combine cached and new embeddings
+
+                for i, embedding in zip(indices_to_process, generated_embeddings):
+                    new_embeddings[i] = embedding
+                    cache_key = self._get_cache_key(texts[i], model)
+                    self._cache_embedding(cache_key, embedding)
+
+            # Combine cached and new embeddings in the correct order
             result_embeddings = []
-            new_idx = 0
+            for i in range(len(texts)):
+                if i in cached_embeddings:
+                    result_embeddings.append(cached_embeddings[i])
+                elif i in new_embeddings:
+                    result_embeddings.append(new_embeddings[i])
             
-            for i, (cached, txt) in enumerate(zip(cached_embeddings, texts_to_process)):
-                if cached is not None:
-                    result_embeddings.append(cached)
-                else:
-                    embedding = new_embeddings[new_idx]
-                    result_embeddings.append(embedding)
-                    
-                    # Cache the new embedding
-                    self._cache_embedding(cache_keys[i], embedding)
-                    new_idx += 1
-            
-            # Return single embedding or list based on input
-            if is_batch:
-                return result_embeddings
-            else:
-                return result_embeddings[0]
+            return result_embeddings if is_batch else result_embeddings[0]
                 
         except Exception as e:
             logger.error(f"Failed to generate embeddings: {e}")
@@ -513,4 +501,4 @@ def get_document_embeddings_manager() -> DocumentEmbeddingsManager:
     global _doc_embeddings_manager
     if _doc_embeddings_manager is None:
         _doc_embeddings_manager = DocumentEmbeddingsManager()
-    return _doc_embeddings_manager 
+    return _doc_embeddings_manager
