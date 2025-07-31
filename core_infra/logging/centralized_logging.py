@@ -315,10 +315,289 @@ class LogShipper:
             internal_logger.error(f"Failed to ship logs to webhook: {e}")
     
     async def _ship_to_siem(self, logs: List[LogEntry], siem_config: Dict[str, Any]):
-        """Ship logs to SIEM system."""
-        # Implementation depends on SIEM system (Splunk, QRadar, etc.)
-        # This is a placeholder for SIEM integration
-        pass
+        """Ship logs to SIEM system with support for multiple SIEM platforms."""
+        try:
+            siem_type = siem_config.get('type', 'splunk').lower()
+
+            if siem_type == 'splunk':
+                await self._ship_to_splunk(logs, siem_config)
+            elif siem_type == 'qradar':
+                await self._ship_to_qradar(logs, siem_config)
+            elif siem_type == 'sentinel':
+                await self._ship_to_azure_sentinel(logs, siem_config)
+            elif siem_type == 'elastic':
+                await self._ship_to_elastic_siem(logs, siem_config)
+            elif siem_type == 'sumo':
+                await self._ship_to_sumo_logic(logs, siem_config)
+            else:
+                internal_logger.warning(f"Unsupported SIEM type: {siem_type}")
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to SIEM: {e}")
+
+    async def _ship_to_splunk(self, logs: List[LogEntry], config: Dict[str, Any]):
+        """Ship logs to Splunk via HTTP Event Collector (HEC)."""
+        try:
+            import aiohttp
+
+            hec_url = config.get('hec_url')
+            hec_token = config.get('hec_token')
+            index = config.get('index', 'regulensai')
+
+            if not hec_url or not hec_token:
+                raise ValueError("Splunk HEC URL and token are required")
+
+            headers = {
+                'Authorization': f'Splunk {hec_token}',
+                'Content-Type': 'application/json'
+            }
+
+            events = []
+            for log in logs:
+                event = {
+                    'time': log.timestamp.timestamp(),
+                    'index': index,
+                    'source': 'regulensai',
+                    'sourcetype': f'regulensai:{log.category}',
+                    'event': {
+                        'level': log.level,
+                        'category': log.category,
+                        'message': log.message,
+                        'component': log.component,
+                        'service_name': log.service_name,
+                        'user_id': log.user_id,
+                        'session_id': log.session_id,
+                        'request_id': log.request_id,
+                        'correlation_id': log.correlation_id,
+                        'metadata': log.metadata,
+                        'structured_data': log.structured_data
+                    }
+                }
+                events.append(event)
+
+            async with aiohttp.ClientSession() as session:
+                for event in events:
+                    async with session.post(hec_url, json=event, headers=headers) as response:
+                        if response.status != 200:
+                            internal_logger.error(f"Splunk HEC error: {response.status} - {await response.text()}")
+
+            internal_logger.info(f"Successfully shipped {len(events)} logs to Splunk")
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to Splunk: {e}")
+
+    async def _ship_to_qradar(self, logs: List[LogEntry], config: Dict[str, Any]):
+        """Ship logs to IBM QRadar via REST API."""
+        try:
+            import aiohttp
+
+            qradar_url = config.get('url')
+            api_token = config.get('api_token')
+
+            if not qradar_url or not api_token:
+                raise ValueError("QRadar URL and API token are required")
+
+            headers = {
+                'SEC': api_token,
+                'Content-Type': 'application/json',
+                'Version': '12.0'
+            }
+
+            # Convert logs to QRadar format
+            events = []
+            for log in logs:
+                event = {
+                    'qid': 1001,  # Custom event ID for RegulensAI
+                    'message': f"[{log.level}] {log.category}: {log.message}",
+                    'properties': [
+                        {'name': 'component', 'value': log.component},
+                        {'name': 'service_name', 'value': log.service_name},
+                        {'name': 'user_id', 'value': log.user_id},
+                        {'name': 'correlation_id', 'value': log.correlation_id}
+                    ]
+                }
+                events.append(event)
+
+            async with aiohttp.ClientSession() as session:
+                url = f"{qradar_url}/api/siem/events"
+                async with session.post(url, json={'events': events}, headers=headers) as response:
+                    if response.status not in [200, 201]:
+                        internal_logger.error(f"QRadar API error: {response.status} - {await response.text()}")
+                    else:
+                        internal_logger.info(f"Successfully shipped {len(events)} logs to QRadar")
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to QRadar: {e}")
+
+    async def _ship_to_azure_sentinel(self, logs: List[LogEntry], config: Dict[str, Any]):
+        """Ship logs to Azure Sentinel via Log Analytics API."""
+        try:
+            import aiohttp
+            import hmac
+            import hashlib
+            import base64
+            from datetime import datetime
+
+            workspace_id = config.get('workspace_id')
+            shared_key = config.get('shared_key')
+            log_type = config.get('log_type', 'RegulensAI')
+
+            if not workspace_id or not shared_key:
+                raise ValueError("Azure Sentinel workspace ID and shared key are required")
+
+            # Prepare log data
+            log_data = []
+            for log in logs:
+                log_entry = {
+                    'TimeGenerated': log.timestamp.isoformat(),
+                    'Level': log.level,
+                    'Category': log.category,
+                    'Message': log.message,
+                    'Component': log.component,
+                    'ServiceName': log.service_name,
+                    'UserId': log.user_id,
+                    'SessionId': log.session_id,
+                    'RequestId': log.request_id,
+                    'CorrelationId': log.correlation_id,
+                    'Metadata': json.dumps(log.metadata) if log.metadata else None,
+                    'StructuredData': json.dumps(log.structured_data) if log.structured_data else None
+                }
+                log_data.append(log_entry)
+
+            # Build signature for authentication
+            body = json.dumps(log_data)
+            method = 'POST'
+            content_type = 'application/json'
+            resource = '/api/logs'
+            rfc1123date = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+            content_length = len(body)
+
+            string_to_hash = f"{method}\n{content_length}\n{content_type}\nx-ms-date:{rfc1123date}\n{resource}"
+            bytes_to_hash = bytes(string_to_hash, 'utf-8')
+            decoded_key = base64.b64decode(shared_key)
+            encoded_hash = base64.b64encode(hmac.new(decoded_key, bytes_to_hash, digestmod=hashlib.sha256).digest()).decode()
+            authorization = f"SharedKey {workspace_id}:{encoded_hash}"
+
+            headers = {
+                'Authorization': authorization,
+                'Log-Type': log_type,
+                'x-ms-date': rfc1123date,
+                'Content-Type': content_type
+            }
+
+            url = f"https://{workspace_id}.ods.opinsights.azure.com{resource}?api-version=2016-04-01"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=body, headers=headers) as response:
+                    if response.status == 200:
+                        internal_logger.info(f"Successfully shipped {len(log_data)} logs to Azure Sentinel")
+                    else:
+                        internal_logger.error(f"Azure Sentinel error: {response.status} - {await response.text()}")
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to Azure Sentinel: {e}")
+
+    async def _ship_to_elastic_siem(self, logs: List[LogEntry], config: Dict[str, Any]):
+        """Ship logs to Elastic SIEM via Elasticsearch API."""
+        try:
+            from elasticsearch import AsyncElasticsearch
+
+            es_hosts = config.get('hosts', ['localhost:9200'])
+            username = config.get('username')
+            password = config.get('password')
+            index_pattern = config.get('index_pattern', 'regulensai-logs')
+
+            # Initialize Elasticsearch client
+            if username and password:
+                es = AsyncElasticsearch(
+                    es_hosts,
+                    http_auth=(username, password),
+                    verify_certs=config.get('verify_certs', True)
+                )
+            else:
+                es = AsyncElasticsearch(es_hosts)
+
+            # Bulk index logs
+            actions = []
+            for log in logs:
+                doc = {
+                    '@timestamp': log.timestamp.isoformat(),
+                    'log': {
+                        'level': log.level,
+                        'logger': log.category
+                    },
+                    'message': log.message,
+                    'service': {
+                        'name': log.service_name,
+                        'component': log.component
+                    },
+                    'user': {'id': log.user_id} if log.user_id else None,
+                    'trace': {
+                        'id': log.correlation_id
+                    } if log.correlation_id else None,
+                    'labels': log.metadata,
+                    'structured_data': log.structured_data
+                }
+
+                action = {
+                    '_index': f"{index_pattern}-{datetime.utcnow().strftime('%Y.%m.%d')}",
+                    '_source': doc
+                }
+                actions.append(action)
+
+            # Bulk index
+            from elasticsearch.helpers import async_bulk
+            await async_bulk(es, actions)
+
+            internal_logger.info(f"Successfully shipped {len(actions)} logs to Elastic SIEM")
+            await es.close()
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to Elastic SIEM: {e}")
+
+    async def _ship_to_sumo_logic(self, logs: List[LogEntry], config: Dict[str, Any]):
+        """Ship logs to Sumo Logic via HTTP collector."""
+        try:
+            import aiohttp
+
+            collector_url = config.get('collector_url')
+
+            if not collector_url:
+                raise ValueError("Sumo Logic collector URL is required")
+
+            # Format logs for Sumo Logic
+            log_lines = []
+            for log in logs:
+                log_line = {
+                    'timestamp': log.timestamp.isoformat(),
+                    'level': log.level,
+                    'category': log.category,
+                    'message': log.message,
+                    'component': log.component,
+                    'service_name': log.service_name,
+                    'user_id': log.user_id,
+                    'correlation_id': log.correlation_id,
+                    'metadata': log.metadata,
+                    'structured_data': log.structured_data
+                }
+                log_lines.append(json.dumps(log_line))
+
+            body = '\n'.join(log_lines)
+
+            headers = {
+                'Content-Type': 'application/json',
+                'X-Sumo-Category': 'regulensai/logs'
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(collector_url, data=body, headers=headers) as response:
+                    if response.status == 200:
+                        internal_logger.info(f"Successfully shipped {len(log_lines)} logs to Sumo Logic")
+                    else:
+                        internal_logger.error(f"Sumo Logic error: {response.status} - {await response.text()}")
+
+        except Exception as e:
+            internal_logger.error(f"Failed to ship logs to Sumo Logic: {e}")
     
     def _filter_logs_for_webhook(self, logs: List[LogEntry], webhook_config: Dict[str, Any]) -> List[LogEntry]:
         """Filter logs based on webhook configuration."""

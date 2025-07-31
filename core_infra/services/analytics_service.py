@@ -24,7 +24,23 @@ class AnalyticsService:
     """Service for training portal analytics and reporting."""
     
     def __init__(self):
-        pass
+        """Initialize the Analytics Service with database connection and caching."""
+        self.logger = structlog.get_logger(__name__)
+        self.cache_ttl = 300  # 5 minutes cache TTL
+        self._metrics_cache = {}
+        self._cache_timestamps = {}
+
+        # Initialize analytics configuration
+        self.analytics_config = {
+            'enable_real_time_metrics': True,
+            'cache_enabled': True,
+            'batch_size': 1000,
+            'max_query_timeout': 30,
+            'enable_performance_tracking': True
+        }
+
+        self.logger.info("Analytics service initialized",
+                        config=self.analytics_config)
     
     async def get_training_dashboard_metrics(self, tenant_id: str) -> Dict[str, Any]:
         """

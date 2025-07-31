@@ -326,9 +326,137 @@ class DocumentManagementIntegrationService:
             logger.error(f"Error updating document lifecycle stage: {str(e)}")
     
     async def _download_document_content(self, document: Dict[str, Any]) -> bytes:
-        """Download document content for analysis."""
-        # Mock implementation - would download from actual repository
-        return b"Mock document content for analysis"
+        """Download document content for analysis from actual repository."""
+        try:
+            document_url = document.get('url') or document.get('file_path')
+            storage_provider = document.get('storage_provider', 'supabase')
+
+            if not document_url:
+                raise ValueError("Document URL or file path not provided")
+
+            if storage_provider == 'supabase':
+                # Download from Supabase Storage
+                bucket_name = document.get('bucket', 'compliance-documents')
+                file_path = document.get('file_path', document_url)
+
+                try:
+                    response = self.supabase.storage.from_(bucket_name).download(file_path)
+                    if response:
+                        logger.info("Downloaded document from Supabase",
+                                  document_id=document.get('id'),
+                                  file_path=file_path,
+                                  size_bytes=len(response))
+                        return response
+                    else:
+                        raise Exception("Empty response from Supabase storage")
+
+                except Exception as supabase_error:
+                    logger.error("Failed to download from Supabase storage",
+                               error=str(supabase_error),
+                               document_id=document.get('id'))
+                    raise
+
+            elif storage_provider == 's3':
+                # Download from AWS S3
+                import boto3
+                from botocore.exceptions import ClientError
+
+                s3_client = boto3.client('s3')
+                bucket_name = document.get('bucket', 'regulensai-documents')
+
+                try:
+                    response = s3_client.get_object(Bucket=bucket_name, Key=document_url)
+                    content = response['Body'].read()
+
+                    logger.info("Downloaded document from S3",
+                              document_id=document.get('id'),
+                              bucket=bucket_name,
+                              key=document_url,
+                              size_bytes=len(content))
+                    return content
+
+                except ClientError as s3_error:
+                    logger.error("Failed to download from S3",
+                               error=str(s3_error),
+                               document_id=document.get('id'))
+                    raise
+
+            elif storage_provider == 'azure':
+                # Download from Azure Blob Storage
+                from azure.storage.blob import BlobServiceClient
+
+                connection_string = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+                if not connection_string:
+                    raise ValueError("Azure storage connection string not configured")
+
+                blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+                container_name = document.get('container', 'compliance-documents')
+
+                try:
+                    blob_client = blob_service_client.get_blob_client(
+                        container=container_name,
+                        blob=document_url
+                    )
+                    content = blob_client.download_blob().readall()
+
+                    logger.info("Downloaded document from Azure",
+                              document_id=document.get('id'),
+                              container=container_name,
+                              blob=document_url,
+                              size_bytes=len(content))
+                    return content
+
+                except Exception as azure_error:
+                    logger.error("Failed to download from Azure",
+                               error=str(azure_error),
+                               document_id=document.get('id'))
+                    raise
+
+            elif storage_provider == 'local' or document_url.startswith('/') or document_url.startswith('./'):
+                # Download from local file system
+                import aiofiles
+
+                try:
+                    async with aiofiles.open(document_url, 'rb') as file:
+                        content = await file.read()
+
+                    logger.info("Downloaded document from local storage",
+                              document_id=document.get('id'),
+                              file_path=document_url,
+                              size_bytes=len(content))
+                    return content
+
+                except FileNotFoundError:
+                    logger.error("Document file not found",
+                               document_id=document.get('id'),
+                               file_path=document_url)
+                    raise
+
+            else:
+                # Download from HTTP/HTTPS URL
+                import aiohttp
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(document_url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+
+                            logger.info("Downloaded document from HTTP",
+                                      document_id=document.get('id'),
+                                      url=document_url,
+                                      size_bytes=len(content))
+                            return content
+                        else:
+                            raise Exception(f"HTTP {response.status}: {await response.text()}")
+
+        except Exception as e:
+            logger.error("Failed to download document content",
+                       error=str(e),
+                       document_id=document.get('id'),
+                       storage_provider=storage_provider)
+
+            # Return empty content as fallback
+            return b""
     
     def _extract_basic_metadata(self, document: Dict[str, Any], content: bytes) -> Dict[str, Any]:
         """Extract basic document metadata."""

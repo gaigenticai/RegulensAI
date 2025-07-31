@@ -12,7 +12,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union
 from dataclasses import dataclass
 import structlog
-from faker import Faker
+import secrets
+import hashlib
 
 from core_infra.config import get_settings
 from core_infra.database.connection import get_database
@@ -22,7 +23,42 @@ from core_infra.exceptions import DataValidationException
 # Initialize logging
 logger = structlog.get_logger(__name__)
 settings = get_settings()
-fake = Faker()
+
+# Production anonymization utilities
+class ProductionAnonymizer:
+    """Production-ready data anonymization utilities."""
+
+    @staticmethod
+    def generate_anonymous_email(domain: str = "anonymized.local") -> str:
+        """Generate anonymous email address."""
+        random_id = secrets.token_hex(8)
+        return f"user_{random_id}@{domain}"
+
+    @staticmethod
+    def generate_anonymous_name() -> str:
+        """Generate anonymous name."""
+        random_id = secrets.token_hex(4)
+        return f"User_{random_id}"
+
+    @staticmethod
+    def generate_anonymous_phone() -> str:
+        """Generate anonymous phone number."""
+        # Generate a valid-looking but fake phone number
+        area_code = secrets.randbelow(800) + 200  # 200-999
+        exchange = secrets.randbelow(800) + 200   # 200-999
+        number = secrets.randbelow(10000)         # 0000-9999
+        return f"+1-{area_code:03d}-{exchange:03d}-{number:04d}"
+
+    @staticmethod
+    def hash_identifier(value: str, salt: str = None) -> str:
+        """Create consistent hash for identifiers."""
+        if salt is None:
+            salt = settings.ENCRYPTION_KEY[:16]  # Use first 16 chars as salt
+
+        combined = f"{value}:{salt}"
+        return hashlib.sha256(combined.encode()).hexdigest()[:16]
+
+anonymizer = ProductionAnonymizer()
 
 @dataclass
 class AnonymizationRule:
@@ -302,17 +338,18 @@ class GDPRAnonymizer:
             return self.pseudonym_mapping[hash_key]
         
         if rule.field_name == 'first_name':
-            pseudonym = fake.first_name()
+            pseudonym = anonymizer.generate_anonymous_name().split('_')[0]
         elif rule.field_name == 'last_name':
-            pseudonym = fake.last_name()
+            pseudonym = anonymizer.generate_anonymous_name().split('_')[1] if '_' in anonymizer.generate_anonymous_name() else 'Anonymous'
         elif rule.field_name == 'full_name':
-            pseudonym = fake.name()
+            pseudonym = anonymizer.generate_anonymous_name()
         elif rule.field_name == 'email':
-            pseudonym = fake.email()
+            pseudonym = anonymizer.generate_anonymous_email()
         elif rule.field_name == 'phone':
-            pseudonym = fake.phone_number()
+            pseudonym = anonymizer.generate_anonymous_phone()
         elif rule.field_name == 'ip_address':
-            pseudonym = fake.ipv4()
+            # Generate anonymous IP in private range
+            pseudonym = f"192.168.{secrets.randbelow(256)}.{secrets.randbelow(256)}"
         else:
             if rule.preserve_length:
                 pseudonym = self._generate_pseudonym_with_length(value, rule.preserve_format)
@@ -378,7 +415,7 @@ class GDPRAnonymizer:
     
     def _pseudonymize_name(self, name: str) -> str:
         """Generate pseudonym for a name."""
-        return fake.name()
+        return anonymizer.generate_anonymous_name()
     
     def _generalize_amount(self, amount: float) -> str:
         """Generalize transaction amount to ranges."""

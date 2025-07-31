@@ -1222,144 +1222,320 @@ CREATE TRIGGER update_tenant_notification_preferences_updated_at BEFORE UPDATE O
 -- CREDENTIAL MANAGEMENT TABLES
 -- ============================================================================
 
--- External service credentials table for encrypted credential storage
+-- Step 1: Create credentials table with primary key
 CREATE TABLE IF NOT EXISTS public.credentials (
-    id text PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    service_name text NOT NULL,
-    credential_type text NOT NULL,
-    encrypted_data jsonb NOT NULL,
-    expires_at timestamp with time zone,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-
-    CONSTRAINT unique_tenant_service_type UNIQUE (tenant_id, service_name, credential_type)
+    id text PRIMARY KEY
 );
 
--- Credential audit log table
+-- Step 2: Add remaining fields to credentials
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS credential_type text NOT NULL;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS encrypted_data jsonb NOT NULL;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS expires_at timestamp with time zone;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.credentials
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Add constraint
+ALTER TABLE public.credentials
+    ADD CONSTRAINT IF NOT EXISTS unique_tenant_service_type UNIQUE (tenant_id, service_name, credential_type);
+
+-- Step 1: Create credential_audit_log table with primary key
 CREATE TABLE IF NOT EXISTS public.credential_audit_log (
-    id text PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    credential_id text NOT NULL,
-    action text NOT NULL, -- 'store', 'retrieve', 'rotate', 'delete'
-    service_name text,
-    credential_type text,
-    timestamp timestamp with time zone DEFAULT now() NOT NULL,
-    ip_address inet,
-    user_agent text,
-    additional_metadata jsonb DEFAULT '{}'
+    id text PRIMARY KEY
 );
 
--- Credential rotation schedule table
+-- Step 2: Add remaining fields to credential_audit_log
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS credential_id text NOT NULL;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS action text NOT NULL; -- 'store', 'retrieve', 'rotate', 'delete'
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS service_name text;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS credential_type text;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+ALTER TABLE public.credential_audit_log
+    ADD COLUMN IF NOT EXISTS additional_metadata jsonb DEFAULT '{}';
+
+-- Step 1: Create credential_rotation_schedule table with primary key
 CREATE TABLE IF NOT EXISTS public.credential_rotation_schedule (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    credential_id text NOT NULL,
-    rotation_frequency_days integer NOT NULL DEFAULT 90,
-    next_rotation_date timestamp with time zone NOT NULL,
-    auto_rotate boolean DEFAULT false,
-    notification_days_before integer DEFAULT 7,
-    last_rotation_date timestamp with time zone,
-    rotation_status text DEFAULT 'scheduled', -- 'scheduled', 'in_progress', 'completed', 'failed'
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Service account configurations table
+-- Step 2: Add remaining fields to credential_rotation_schedule
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS credential_id text NOT NULL;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS rotation_frequency_days integer NOT NULL DEFAULT 90;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS next_rotation_date timestamp with time zone NOT NULL;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS auto_rotate boolean DEFAULT false;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS notification_days_before integer DEFAULT 7;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS last_rotation_date timestamp with time zone;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS rotation_status text DEFAULT 'scheduled'; -- 'scheduled', 'in_progress', 'completed', 'failed'
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.credential_rotation_schedule
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create service_account_configurations table with primary key
 CREATE TABLE IF NOT EXISTS public.service_account_configurations (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    service_name text NOT NULL,
-    account_type text NOT NULL, -- 'api_key', 'oauth', 'basic_auth', 'certificate'
-    configuration jsonb NOT NULL DEFAULT '{}',
-    validation_endpoint text,
-    validation_status text DEFAULT 'pending', -- 'pending', 'valid', 'invalid', 'expired'
-    last_validated timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-
-    CONSTRAINT unique_tenant_service_account UNIQUE (tenant_id, service_name, account_type)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- External service endpoints table
+-- Step 2: Add remaining fields to service_account_configurations
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS account_type text NOT NULL; -- 'api_key', 'oauth', 'basic_auth', 'certificate'
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS configuration jsonb NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS validation_endpoint text;
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS validation_status text DEFAULT 'pending'; -- 'pending', 'valid', 'invalid', 'expired'
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS last_validated timestamp with time zone;
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.service_account_configurations
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Add constraint
+ALTER TABLE public.service_account_configurations
+    ADD CONSTRAINT IF NOT EXISTS unique_tenant_service_account UNIQUE (tenant_id, service_name, account_type);
+
+-- Step 1: Create external_service_endpoints table with primary key
 CREATE TABLE IF NOT EXISTS public.external_service_endpoints (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    service_name text NOT NULL,
-    endpoint_type text NOT NULL, -- 'api', 'webhook', 'sftp', 'database'
-    base_url text NOT NULL,
-    authentication_method text NOT NULL, -- 'api_key', 'oauth', 'basic_auth', 'certificate'
-    rate_limit_config jsonb DEFAULT '{}',
-    timeout_seconds integer DEFAULT 30,
-    retry_config jsonb DEFAULT '{}',
-    health_check_endpoint text,
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to external_service_endpoints
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS endpoint_type text NOT NULL; -- 'api', 'webhook', 'sftp', 'database'
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS base_url text NOT NULL;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS authentication_method text NOT NULL; -- 'api_key', 'oauth', 'basic_auth', 'certificate'
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS rate_limit_config jsonb DEFAULT '{}';
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS timeout_seconds integer DEFAULT 30;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS retry_config jsonb DEFAULT '{}';
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS health_check_endpoint text;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.external_service_endpoints
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- ENHANCED NOTIFICATION TABLES
 -- ============================================================================
 
--- Notification templates table
+-- Step 1: Create notification_templates table with primary key
 CREATE TABLE IF NOT EXISTS public.notification_templates (
-    id text PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    template_name text NOT NULL,
-    template_type text NOT NULL, -- 'email', 'sms', 'slack', 'webhook'
-    language text NOT NULL DEFAULT 'en',
-    subject_template text,
-    text_template text,
-    html_template text,
-    sms_template text,
-    metadata jsonb DEFAULT '{}',
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-
-    CONSTRAINT unique_tenant_template UNIQUE (tenant_id, template_name, template_type, language)
+    id text PRIMARY KEY
 );
 
--- User notification preferences table
+-- Step 2: Add remaining fields to notification_templates
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS template_name text NOT NULL;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS template_type text NOT NULL; -- 'email', 'sms', 'slack', 'webhook'
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS language text NOT NULL DEFAULT 'en';
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS subject_template text;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS text_template text;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS html_template text;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS sms_template text;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.notification_templates
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Add constraint
+ALTER TABLE public.notification_templates
+    ADD CONSTRAINT IF NOT EXISTS unique_tenant_template UNIQUE (tenant_id, template_name, template_type, language);
+
+-- Step 1: Create user_notification_preferences table with primary key
 CREATE TABLE IF NOT EXISTS public.user_notification_preferences (
     user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    preferences jsonb NOT NULL DEFAULT '{}',
-    quiet_hours jsonb,
-    escalation_rules jsonb DEFAULT '[]',
-    language text DEFAULT 'en',
-    timezone text DEFAULT 'UTC',
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-
     PRIMARY KEY (user_id, tenant_id)
 );
 
--- Tenant notification preferences table
+-- Step 2: Add remaining fields to user_notification_preferences
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS preferences jsonb NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS quiet_hours jsonb;
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS escalation_rules jsonb DEFAULT '[]';
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS language text DEFAULT 'en';
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS timezone text DEFAULT 'UTC';
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.user_notification_preferences
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create tenant_notification_preferences table with primary key
 CREATE TABLE IF NOT EXISTS public.tenant_notification_preferences (
-    tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
-    default_preferences jsonb NOT NULL DEFAULT '{}',
-    routing_rules jsonb DEFAULT '[]',
-    escalation_matrix jsonb DEFAULT '{}',
-    compliance_settings jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE
 );
 
--- Notification routing logs table
+-- Step 2: Add remaining fields to tenant_notification_preferences
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS default_preferences jsonb NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS routing_rules jsonb DEFAULT '[]';
+
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS escalation_matrix jsonb DEFAULT '{}';
+
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS compliance_settings jsonb DEFAULT '{}';
+
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.tenant_notification_preferences
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create notification_routing_logs table with primary key
 CREATE TABLE IF NOT EXISTS public.notification_routing_logs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    notification_id uuid,
-    routing_decision jsonb NOT NULL,
-    applied_rules jsonb DEFAULT '[]',
-    routing_timestamp timestamp with time zone DEFAULT now() NOT NULL,
-    processing_duration_ms integer,
-    success boolean DEFAULT true,
-    error_message text
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to notification_routing_logs
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS notification_id uuid;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS routing_decision jsonb NOT NULL;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS applied_rules jsonb DEFAULT '[]';
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS routing_timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS processing_duration_ms integer;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS success boolean DEFAULT true;
+
+ALTER TABLE public.notification_routing_logs
+    ADD COLUMN IF NOT EXISTS error_message text;
 
 -- ============================================================================
 -- SCHEMA VALIDATION AND CONSTRAINTS
@@ -4976,359 +5152,613 @@ COMMENT ON TABLE public.deployment_logs IS 'Blue-green deployment logs and statu
 -- AUTHENTICATION AND AUTHORIZATION TABLES (Phase 1)
 -- ============================================================================
 
--- User credentials table for authentication
-CREATE TABLE IF NOT EXISTS public.user_credentials (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    password_hash text NOT NULL,
-    salt text,
-    last_password_change timestamp with time zone DEFAULT now() NOT NULL,
-    password_expires_at timestamp with time zone,
-    failed_login_attempts integer DEFAULT 0 NOT NULL,
-    locked_until timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
+-- Note: user_credentials, permissions, and user_permissions tables are already defined above
+-- These are duplicate definitions that should be removed to avoid conflicts
 
--- Permissions table
-CREATE TABLE IF NOT EXISTS public.permissions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    name text NOT NULL UNIQUE,
-    description text,
-    category text NOT NULL,
-    resource text,
-    action text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
--- User permissions junction table
-CREATE TABLE IF NOT EXISTS public.user_permissions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    permission_id uuid NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
-    granted_by uuid REFERENCES public.users(id),
-    granted_at timestamp with time zone DEFAULT now() NOT NULL,
-    expires_at timestamp with time zone,
-    UNIQUE(user_id, permission_id)
-);
-
--- User sessions table for JWT token management
+-- Step 1: Create user_sessions table with primary key
 CREATE TABLE IF NOT EXISTS public.user_sessions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    session_token text NOT NULL UNIQUE,
-    refresh_token text UNIQUE,
-    ip_address inet,
-    user_agent text,
-    expires_at timestamp with time zone NOT NULL,
-    refresh_expires_at timestamp with time zone,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_accessed_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to user_sessions
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS session_token text NOT NULL UNIQUE;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS refresh_token text UNIQUE;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS expires_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS refresh_expires_at timestamp with time zone;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.user_sessions
+    ADD COLUMN IF NOT EXISTS last_accessed_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- NOTIFICATION AND ALERT TABLES (Phase 2)
 -- ============================================================================
 
--- Notifications table
+-- Step 1: Create notifications table with primary key
 CREATE TABLE IF NOT EXISTS public.notifications (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    notification_type text NOT NULL,
-    subject text,
-    content text NOT NULL,
-    channels text[] NOT NULL DEFAULT '{}',
-    recipients text[] NOT NULL DEFAULT '{}',
-    metadata jsonb DEFAULT '{}',
-    status text NOT NULL DEFAULT 'pending',
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Notification deliveries table
+-- Step 2: Add remaining fields to notifications
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS notification_type text NOT NULL;
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS subject text;
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS content text NOT NULL;
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS channels text[] NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS recipients text[] NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create notification_deliveries table with primary key
 CREATE TABLE IF NOT EXISTS public.notification_deliveries (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    notification_id uuid NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
-    channel text NOT NULL,
-    status text NOT NULL,
-    delivered_at timestamp with time zone,
-    error_message text,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Alerts table
+-- Step 2: Add remaining fields to notification_deliveries
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS notification_id uuid NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE;
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS channel text NOT NULL;
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS delivered_at timestamp with time zone;
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS error_message text;
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.notification_deliveries
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create alerts table with primary key
 CREATE TABLE IF NOT EXISTS public.alerts (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    alert_type text NOT NULL,
-    severity text NOT NULL,
-    title text NOT NULL,
-    description text NOT NULL,
-    entity_type text,
-    entity_id uuid,
-    status text NOT NULL DEFAULT 'open',
-    assigned_to uuid REFERENCES public.users(id),
-    metadata jsonb DEFAULT '{}',
-    fingerprint text,
-    occurrence_count integer DEFAULT 1 NOT NULL,
-    acknowledged_at timestamp with time zone,
-    resolved_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Alert history table
+-- Step 2: Add remaining fields to alerts
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS alert_type text NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS severity text NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS description text NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS entity_type text;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS entity_id uuid;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'open';
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES public.users(id);
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS fingerprint text;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS occurrence_count integer DEFAULT 1 NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS acknowledged_at timestamp with time zone;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS resolved_at timestamp with time zone;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.alerts
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create alert_history table with primary key
 CREATE TABLE IF NOT EXISTS public.alert_history (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    alert_id uuid NOT NULL REFERENCES public.alerts(id) ON DELETE CASCADE,
-    action text NOT NULL,
-    user_id uuid REFERENCES public.users(id),
-    notes text,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to alert_history
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS alert_id uuid NOT NULL REFERENCES public.alerts(id) ON DELETE CASCADE;
+
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS action text NOT NULL;
+
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id);
+
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS notes text;
+
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.alert_history
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- COMPLIANCE AND AUDIT TABLES (Phase 1-2)
 -- ============================================================================
 
--- Compliance programs table
-CREATE TABLE IF NOT EXISTS public.compliance_programs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    name text NOT NULL,
-    description text NOT NULL,
-    framework text NOT NULL,
-    jurisdiction text NOT NULL,
-    effective_date date NOT NULL,
-    review_frequency integer NOT NULL,
-    owner_id uuid NOT NULL REFERENCES public.users(id),
-    is_active boolean DEFAULT true NOT NULL,
-    last_review_date date,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
+-- Note: compliance_programs and compliance_requirements tables are already defined above
+-- These are duplicate definitions that should be removed to avoid conflicts
 
--- Compliance requirements table
-CREATE TABLE IF NOT EXISTS public.compliance_requirements (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    program_id uuid NOT NULL REFERENCES public.compliance_programs(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    description text NOT NULL,
-    requirement_type text NOT NULL,
-    priority text NOT NULL,
-    status text NOT NULL DEFAULT 'pending',
-    due_date date,
-    assigned_to uuid REFERENCES public.users(id),
-    evidence_required boolean DEFAULT true NOT NULL,
-    automation_possible boolean DEFAULT false NOT NULL,
-    completion_percentage integer DEFAULT 0 NOT NULL,
-    completion_notes text,
-    completed_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
--- Tasks table
+-- Step 1: Create tasks table with primary key
 CREATE TABLE IF NOT EXISTS public.tasks (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    description text NOT NULL,
-    task_type text NOT NULL,
-    priority text NOT NULL,
-    status text NOT NULL DEFAULT 'pending',
-    due_date timestamp with time zone,
-    assigned_to uuid REFERENCES public.users(id),
-    created_by uuid NOT NULL REFERENCES public.users(id),
-    related_entity_type text,
-    related_entity_id uuid,
-    completion_notes text,
-    completed_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Screening results table
+-- Step 2: Add remaining fields to tasks
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS description text NOT NULL;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS task_type text NOT NULL;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS priority text NOT NULL;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS due_date timestamp with time zone;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES public.users(id);
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS created_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS related_entity_type text;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS related_entity_id uuid;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS completion_notes text;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.tasks
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create screening_results table with primary key
 CREATE TABLE IF NOT EXISTS public.screening_results (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    screening_type text NOT NULL,
-    status text NOT NULL,
-    match_found boolean DEFAULT false NOT NULL,
-    match_details jsonb DEFAULT '{}',
-    risk_level text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Screening tasks table
+-- Step 2: Add remaining fields to screening_results
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS screening_type text NOT NULL;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS match_found boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS match_details jsonb DEFAULT '{}';
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS risk_level text NOT NULL;
+
+ALTER TABLE public.screening_results
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create screening_tasks table with primary key
 CREATE TABLE IF NOT EXISTS public.screening_tasks (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    screening_type text NOT NULL,
-    status text NOT NULL DEFAULT 'pending',
-    entity_name text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Enhanced monitoring table
+-- Step 2: Add remaining fields to screening_tasks
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE;
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS screening_type text NOT NULL;
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS entity_name text NOT NULL;
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.screening_tasks
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create enhanced_monitoring table with primary key
 CREATE TABLE IF NOT EXISTS public.enhanced_monitoring (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    monitoring_type text NOT NULL,
-    status text NOT NULL DEFAULT 'active',
-    start_date date NOT NULL,
-    review_date date NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE(customer_id, monitoring_type)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- AI analysis results table
+-- Step 2: Add remaining fields to enhanced_monitoring
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS monitoring_type text NOT NULL;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS start_date date NOT NULL;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS review_date date NOT NULL;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.enhanced_monitoring
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.enhanced_monitoring
+    ADD CONSTRAINT IF NOT EXISTS unique_customer_monitoring UNIQUE(customer_id, monitoring_type);
+
+-- Step 1: Create ai_analysis_results table with primary key
 CREATE TABLE IF NOT EXISTS public.ai_analysis_results (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    entity_type text NOT NULL,
-    entity_id uuid NOT NULL,
-    analysis_type text NOT NULL,
-    risk_score numeric(5,2) NOT NULL,
-    risk_factors jsonb DEFAULT '{}',
-    recommendations text[] DEFAULT '{}',
-    confidence_level numeric(3,2) NOT NULL,
-    parameters jsonb DEFAULT '{}',
-    created_by uuid NOT NULL REFERENCES public.users(id),
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Report generations table
+-- Step 2: Add remaining fields to ai_analysis_results
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS entity_type text NOT NULL;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS entity_id uuid NOT NULL;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS analysis_type text NOT NULL;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS risk_score numeric(5,2) NOT NULL;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS risk_factors jsonb DEFAULT '{}';
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS recommendations text[] DEFAULT '{}';
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS confidence_level numeric(3,2) NOT NULL;
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS parameters jsonb DEFAULT '{}';
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS created_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.ai_analysis_results
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create report_generations table with primary key
 CREATE TABLE IF NOT EXISTS public.report_generations (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    report_type text NOT NULL,
-    start_date date NOT NULL,
-    end_date date NOT NULL,
-    filters jsonb DEFAULT '{}',
-    format text NOT NULL DEFAULT 'json',
-    status text NOT NULL DEFAULT 'pending',
-    file_path text,
-    requested_by uuid NOT NULL REFERENCES public.users(id),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    completed_at timestamp with time zone
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- GDPR anonymization log table
+-- Step 2: Add remaining fields to report_generations
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS report_type text NOT NULL;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS start_date date NOT NULL;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS end_date date NOT NULL;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS filters jsonb DEFAULT '{}';
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'json';
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS file_path text;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS requested_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.report_generations
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+-- Step 1: Create gdpr_anonymization_log table with primary key
 CREATE TABLE IF NOT EXISTS public.gdpr_anonymization_log (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    anonymization_type text NOT NULL,
-    anonymized_at timestamp with time zone NOT NULL,
-    anonymized_records integer NOT NULL,
-    anonymization_metadata jsonb DEFAULT '{}'
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to gdpr_anonymization_log
+ALTER TABLE public.gdpr_anonymization_log
+    ADD COLUMN IF NOT EXISTS customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE;
+
+ALTER TABLE public.gdpr_anonymization_log
+    ADD COLUMN IF NOT EXISTS anonymization_type text NOT NULL;
+
+ALTER TABLE public.gdpr_anonymization_log
+    ADD COLUMN IF NOT EXISTS anonymized_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.gdpr_anonymization_log
+    ADD COLUMN IF NOT EXISTS anonymized_records integer NOT NULL;
+
+ALTER TABLE public.gdpr_anonymization_log
+    ADD COLUMN IF NOT EXISTS anonymization_metadata jsonb DEFAULT '{}';
 
 -- ============================================================================
 -- AUDIT AND SECURITY TABLES (Phase 2)
 -- ============================================================================
 
--- Audit logs table
-CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    user_id uuid REFERENCES public.users(id),
-    action text NOT NULL,
-    resource_type text NOT NULL,
-    resource_id uuid,
-    ip_address inet,
-    user_agent text,
-    request_id text,
-    method text,
-    endpoint text,
-    status_code integer,
-    request_data jsonb DEFAULT '{}',
-    response_data jsonb DEFAULT '{}',
-    duration_ms integer,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
+-- Note: audit_logs table is already defined above
+-- This is a duplicate definition that should be removed to avoid conflicts
 
--- Security events table
+-- Step 1: Create security_events table with primary key
 CREATE TABLE IF NOT EXISTS public.security_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id),
-    event_type text NOT NULL,
-    severity text NOT NULL,
-    source_ip inet,
-    user_id uuid REFERENCES public.users(id),
-    description text NOT NULL,
-    metadata jsonb DEFAULT '{}',
-    resolved boolean DEFAULT false NOT NULL,
-    resolved_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- File uploads table
+-- Step 2: Add remaining fields to security_events
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id);
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS event_type text NOT NULL;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS severity text NOT NULL;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS source_ip inet;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id);
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS description text NOT NULL;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS resolved boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS resolved_at timestamp with time zone;
+
+ALTER TABLE public.security_events
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create file_uploads table with primary key
 CREATE TABLE IF NOT EXISTS public.file_uploads (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    uploaded_by uuid NOT NULL REFERENCES public.users(id),
-    original_filename text NOT NULL,
-    stored_filename text NOT NULL,
-    file_size bigint NOT NULL,
-    mime_type text NOT NULL,
-    file_hash text NOT NULL,
-    scan_status text NOT NULL DEFAULT 'pending',
-    scan_results jsonb DEFAULT '{}',
-    storage_path text NOT NULL,
-    is_quarantined boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to file_uploads
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS uploaded_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS original_filename text NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS stored_filename text NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS file_size bigint NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS mime_type text NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS file_hash text NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS scan_status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS scan_results jsonb DEFAULT '{}';
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS storage_path text NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS is_quarantined boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.file_uploads
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- PERFORMANCE AND MONITORING TABLES (Phase 3)
 -- ============================================================================
 
--- Performance metrics table
+-- Step 1: Create performance_metrics table with primary key
 CREATE TABLE IF NOT EXISTS public.performance_metrics (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id),
-    metric_name text NOT NULL,
-    metric_value numeric NOT NULL,
-    metric_unit text,
-    tags jsonb DEFAULT '{}',
-    timestamp timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- System health checks table
+-- Step 2: Add remaining fields to performance_metrics
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id);
+
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS metric_name text NOT NULL;
+
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS metric_value numeric NOT NULL;
+
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS metric_unit text;
+
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '{}';
+
+ALTER TABLE public.performance_metrics
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create system_health_checks table with primary key
 CREATE TABLE IF NOT EXISTS public.system_health_checks (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    service_name text NOT NULL,
-    check_type text NOT NULL,
-    status text NOT NULL,
-    response_time_ms integer,
-    error_message text,
-    metadata jsonb DEFAULT '{}',
-    checked_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Database backup logs table
+-- Step 2: Add remaining fields to system_health_checks
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS check_type text NOT NULL;
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS response_time_ms integer;
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS error_message text;
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.system_health_checks
+    ADD COLUMN IF NOT EXISTS checked_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create backup_logs table with primary key
 CREATE TABLE IF NOT EXISTS public.backup_logs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    backup_type text NOT NULL,
-    status text NOT NULL,
-    file_path text,
-    file_size bigint,
-    duration_seconds integer,
-    error_message text,
-    metadata jsonb DEFAULT '{}',
-    started_at timestamp with time zone NOT NULL,
-    completed_at timestamp with time zone
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to backup_logs
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS backup_type text NOT NULL;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS file_path text;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS file_size bigint;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS duration_seconds integer;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS error_message text;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS started_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.backup_logs
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
 
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE (Phase 3)
@@ -5700,222 +6130,544 @@ ON CONFLICT (name) DO NOTHING;
 -- TRAINING PORTAL TABLES
 -- ============================================================================
 
--- Training modules (courses/sections)
+-- Step 1: Create training_modules table with primary key
 CREATE TABLE IF NOT EXISTS public.training_modules (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    module_code text NOT NULL UNIQUE,
-    title text NOT NULL,
-    description text,
-    category text NOT NULL, -- 'notification_management', 'external_data', 'operational_procedures', 'api_usage'
-    difficulty_level text NOT NULL DEFAULT 'beginner', -- 'beginner', 'intermediate', 'advanced', 'expert'
-    estimated_duration_minutes integer NOT NULL DEFAULT 60,
-    prerequisites jsonb DEFAULT '[]', -- Array of prerequisite module codes
-    learning_objectives jsonb DEFAULT '[]', -- Array of learning objectives
-    content_type text NOT NULL DEFAULT 'interactive', -- 'interactive', 'video', 'document', 'hands_on'
-    content_url text, -- URL to content or null for embedded content
-    content_data jsonb DEFAULT '{}', -- Embedded content data
-    is_mandatory boolean DEFAULT false,
-    is_active boolean DEFAULT true,
-    version text NOT NULL DEFAULT '1.0',
-    created_by uuid NOT NULL REFERENCES public.users(id),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Training sections within modules
+-- Step 2: Add remaining fields to training_modules
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS module_code text NOT NULL UNIQUE;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS category text NOT NULL; -- 'notification_management', 'external_data', 'operational_procedures', 'api_usage'
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS difficulty_level text NOT NULL DEFAULT 'beginner'; -- 'beginner', 'intermediate', 'advanced', 'expert'
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS estimated_duration_minutes integer NOT NULL DEFAULT 60;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS prerequisites jsonb DEFAULT '[]'; -- Array of prerequisite module codes
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS learning_objectives jsonb DEFAULT '[]'; -- Array of learning objectives
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS content_type text NOT NULL DEFAULT 'interactive'; -- 'interactive', 'video', 'document', 'hands_on'
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS content_url text; -- URL to content or null for embedded content
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS content_data jsonb DEFAULT '{}'; -- Embedded content data
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS is_mandatory boolean DEFAULT false;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS version text NOT NULL DEFAULT '1.0';
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS created_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_modules
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create training_sections table with primary key
 CREATE TABLE IF NOT EXISTS public.training_sections (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    section_code text NOT NULL,
-    title text NOT NULL,
-    description text,
-    content_markdown text, -- Markdown content
-    content_html text, -- Rendered HTML content
-    section_order integer NOT NULL DEFAULT 1,
-    estimated_duration_minutes integer DEFAULT 15,
-    is_interactive boolean DEFAULT false,
-    interactive_elements jsonb DEFAULT '{}', -- Code examples, exercises, etc.
-    is_required boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE(module_id, section_code)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Training assessments (quizzes/tests)
+-- Step 2: Add remaining fields to training_sections
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS section_code text NOT NULL;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS content_markdown text; -- Markdown content
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS content_html text; -- Rendered HTML content
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS section_order integer NOT NULL DEFAULT 1;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS estimated_duration_minutes integer DEFAULT 15;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS is_interactive boolean DEFAULT false;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS interactive_elements jsonb DEFAULT '{}'; -- Code examples, exercises, etc.
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS is_required boolean DEFAULT true;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_sections
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.training_sections
+    ADD CONSTRAINT IF NOT EXISTS unique_module_section_code UNIQUE(module_id, section_code);
+
+-- Step 1: Create training_assessments table with primary key
 CREATE TABLE IF NOT EXISTS public.training_assessments (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE,
-    assessment_code text NOT NULL,
-    title text NOT NULL,
-    description text,
-    assessment_type text NOT NULL DEFAULT 'quiz', -- 'quiz', 'practical', 'essay', 'hands_on'
-    passing_score integer NOT NULL DEFAULT 80, -- Percentage
-    max_attempts integer DEFAULT 3,
-    time_limit_minutes integer DEFAULT 30,
-    questions jsonb NOT NULL DEFAULT '[]', -- Array of question objects
-    is_required boolean DEFAULT true,
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE(module_id, assessment_code)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- User enrollment in training modules
+-- Step 2: Add remaining fields to training_assessments
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS assessment_code text NOT NULL;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS assessment_type text NOT NULL DEFAULT 'quiz'; -- 'quiz', 'practical', 'essay', 'hands_on'
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS passing_score integer NOT NULL DEFAULT 80; -- Percentage
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS max_attempts integer DEFAULT 3;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS time_limit_minutes integer DEFAULT 30;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS questions jsonb NOT NULL DEFAULT '[]'; -- Array of question objects
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS is_required boolean DEFAULT true;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_assessments
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.training_assessments
+    ADD CONSTRAINT IF NOT EXISTS unique_module_assessment_code UNIQUE(module_id, assessment_code);
+
+-- Step 1: Create training_enrollments table with primary key
 CREATE TABLE IF NOT EXISTS public.training_enrollments (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    enrolled_at timestamp with time zone DEFAULT now() NOT NULL,
-    enrolled_by uuid REFERENCES public.users(id), -- Who enrolled the user (admin/manager)
-    target_completion_date timestamp with time zone,
-    status text NOT NULL DEFAULT 'enrolled', -- 'enrolled', 'in_progress', 'completed', 'failed', 'expired'
-    completion_percentage numeric(5,2) DEFAULT 0.0,
-    started_at timestamp with time zone,
-    completed_at timestamp with time zone,
-    last_accessed_at timestamp with time zone,
-    total_time_spent_minutes integer DEFAULT 0,
-    notes text,
-    UNIQUE(user_id, module_id)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- User progress through training sections
+-- Step 2: Add remaining fields to training_enrollments
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS enrolled_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS enrolled_by uuid REFERENCES public.users(id); -- Who enrolled the user (admin/manager)
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS target_completion_date timestamp with time zone;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'enrolled'; -- 'enrolled', 'in_progress', 'completed', 'failed', 'expired'
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS completion_percentage numeric(5,2) DEFAULT 0.0;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS started_at timestamp with time zone;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS last_accessed_at timestamp with time zone;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS total_time_spent_minutes integer DEFAULT 0;
+
+ALTER TABLE public.training_enrollments
+    ADD COLUMN IF NOT EXISTS notes text;
+
+-- Step 3: Add constraint
+ALTER TABLE public.training_enrollments
+    ADD CONSTRAINT IF NOT EXISTS unique_user_module UNIQUE(user_id, module_id);
+
+-- Step 1: Create training_section_progress table with primary key
 CREATE TABLE IF NOT EXISTS public.training_section_progress (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE,
-    section_id uuid NOT NULL REFERENCES public.training_sections(id) ON DELETE CASCADE,
-    status text NOT NULL DEFAULT 'not_started', -- 'not_started', 'in_progress', 'completed', 'skipped'
-    started_at timestamp with time zone,
-    completed_at timestamp with time zone,
-    time_spent_minutes integer DEFAULT 0,
-    last_position text, -- Last scroll position or bookmark
-    notes text,
-    interactions jsonb DEFAULT '{}', -- User interactions with interactive elements
-    UNIQUE(enrollment_id, section_id)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Assessment attempts and results
+-- Step 2: Add remaining fields to training_section_progress
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS section_id uuid NOT NULL REFERENCES public.training_sections(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'not_started'; -- 'not_started', 'in_progress', 'completed', 'skipped'
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS started_at timestamp with time zone;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS time_spent_minutes integer DEFAULT 0;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS last_position text; -- Last scroll position or bookmark
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS notes text;
+
+ALTER TABLE public.training_section_progress
+    ADD COLUMN IF NOT EXISTS interactions jsonb DEFAULT '{}'; -- User interactions with interactive elements
+
+-- Step 3: Add constraint
+ALTER TABLE public.training_section_progress
+    ADD CONSTRAINT IF NOT EXISTS unique_enrollment_section UNIQUE(enrollment_id, section_id);
+
+-- Step 1: Create training_assessment_attempts table with primary key
 CREATE TABLE IF NOT EXISTS public.training_assessment_attempts (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE,
-    assessment_id uuid NOT NULL REFERENCES public.training_assessments(id) ON DELETE CASCADE,
-    attempt_number integer NOT NULL DEFAULT 1,
-    started_at timestamp with time zone DEFAULT now() NOT NULL,
-    completed_at timestamp with time zone,
-    time_spent_minutes integer,
-    answers jsonb DEFAULT '{}', -- User answers
-    score numeric(5,2), -- Percentage score
-    passed boolean DEFAULT false,
-    feedback jsonb DEFAULT '{}', -- Detailed feedback per question
-    status text NOT NULL DEFAULT 'in_progress', -- 'in_progress', 'completed', 'abandoned', 'expired'
-    ip_address inet,
-    user_agent text
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- User bookmarks for training content
+-- Step 2: Add remaining fields to training_assessment_attempts
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS assessment_id uuid NOT NULL REFERENCES public.training_assessments(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS attempt_number integer NOT NULL DEFAULT 1;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS started_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS completed_at timestamp with time zone;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS time_spent_minutes integer;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS answers jsonb DEFAULT '{}'; -- User answers
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS score numeric(5,2); -- Percentage score
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS passed boolean DEFAULT false;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS feedback jsonb DEFAULT '{}'; -- Detailed feedback per question
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'in_progress'; -- 'in_progress', 'completed', 'abandoned', 'expired'
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.training_assessment_attempts
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+-- Step 1: Create training_bookmarks table with primary key
 CREATE TABLE IF NOT EXISTS public.training_bookmarks (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    module_id uuid REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE,
-    bookmark_type text NOT NULL DEFAULT 'section', -- 'module', 'section', 'position'
-    title text NOT NULL,
-    description text,
-    position_data jsonb DEFAULT '{}', -- Scroll position, page number, etc.
-    tags jsonb DEFAULT '[]', -- User-defined tags
-    is_private boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Training certificates
+-- Step 2: Add remaining fields to training_bookmarks
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS module_id uuid REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS bookmark_type text NOT NULL DEFAULT 'section'; -- 'module', 'section', 'position'
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS title text NOT NULL;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS position_data jsonb DEFAULT '{}'; -- Scroll position, page number, etc.
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '[]'; -- User-defined tags
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS is_private boolean DEFAULT true;
+
+ALTER TABLE public.training_bookmarks
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create training_certificates table with primary key
 CREATE TABLE IF NOT EXISTS public.training_certificates (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE,
-    certificate_number text NOT NULL UNIQUE,
-    certificate_type text NOT NULL DEFAULT 'completion', -- 'completion', 'proficiency', 'mastery'
-    issued_at timestamp with time zone DEFAULT now() NOT NULL,
-    expires_at timestamp with time zone,
-    final_score numeric(5,2),
-    certificate_data jsonb DEFAULT '{}', -- Certificate template data
-    verification_code text NOT NULL UNIQUE,
-    is_valid boolean DEFAULT true,
-    revoked_at timestamp with time zone,
-    revoked_by uuid REFERENCES public.users(id),
-    revocation_reason text
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- User achievements and badges
+-- Step 2: Add remaining fields to training_certificates
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS enrollment_id uuid NOT NULL REFERENCES public.training_enrollments(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS certificate_number text NOT NULL UNIQUE;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS certificate_type text NOT NULL DEFAULT 'completion'; -- 'completion', 'proficiency', 'mastery'
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS issued_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS expires_at timestamp with time zone;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS final_score numeric(5,2);
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS certificate_data jsonb DEFAULT '{}'; -- Certificate template data
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS verification_code text NOT NULL UNIQUE;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS is_valid boolean DEFAULT true;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS revoked_at timestamp with time zone;
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS revoked_by uuid REFERENCES public.users(id);
+
+ALTER TABLE public.training_certificates
+    ADD COLUMN IF NOT EXISTS revocation_reason text;
+
+-- Step 1: Create training_achievements table with primary key
 CREATE TABLE IF NOT EXISTS public.training_achievements (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    achievement_type text NOT NULL, -- 'first_completion', 'perfect_score', 'speed_learner', 'helping_hand'
-    achievement_name text NOT NULL,
-    description text,
-    icon_url text,
-    earned_at timestamp with time zone DEFAULT now() NOT NULL,
-    related_module_id uuid REFERENCES public.training_modules(id),
-    metadata jsonb DEFAULT '{}'
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Discussion forums for training modules
+-- Step 2: Add remaining fields to training_achievements
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS achievement_type text NOT NULL; -- 'first_completion', 'perfect_score', 'speed_learner', 'helping_hand'
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS achievement_name text NOT NULL;
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS description text;
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS icon_url text;
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS earned_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS related_module_id uuid REFERENCES public.training_modules(id);
+
+ALTER TABLE public.training_achievements
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+-- Step 1: Create training_discussions table with primary key
 CREATE TABLE IF NOT EXISTS public.training_discussions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE,
-    section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE,
-    parent_id uuid REFERENCES public.training_discussions(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    title text,
-    content text NOT NULL,
-    discussion_type text NOT NULL DEFAULT 'question', -- 'question', 'comment', 'answer', 'tip'
-    is_pinned boolean DEFAULT false,
-    is_resolved boolean DEFAULT false,
-    upvotes integer DEFAULT 0,
-    downvotes integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Discussion votes
+-- Step 2: Add remaining fields to training_discussions
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS module_id uuid NOT NULL REFERENCES public.training_modules(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS section_id uuid REFERENCES public.training_sections(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS parent_id uuid REFERENCES public.training_discussions(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS title text;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS content text NOT NULL;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS discussion_type text NOT NULL DEFAULT 'question'; -- 'question', 'comment', 'answer', 'tip'
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS is_pinned boolean DEFAULT false;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS is_resolved boolean DEFAULT false;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS upvotes integer DEFAULT 0;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS downvotes integer DEFAULT 0;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_discussions
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create training_discussion_votes table with primary key
 CREATE TABLE IF NOT EXISTS public.training_discussion_votes (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    discussion_id uuid NOT NULL REFERENCES public.training_discussions(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    vote_type text NOT NULL, -- 'upvote', 'downvote'
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    UNIQUE(discussion_id, user_id)
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Training analytics events
+-- Step 2: Add remaining fields to training_discussion_votes
+ALTER TABLE public.training_discussion_votes
+    ADD COLUMN IF NOT EXISTS discussion_id uuid NOT NULL REFERENCES public.training_discussions(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussion_votes
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_discussion_votes
+    ADD COLUMN IF NOT EXISTS vote_type text NOT NULL; -- 'upvote', 'downvote'
+
+ALTER TABLE public.training_discussion_votes
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.training_discussion_votes
+    ADD CONSTRAINT IF NOT EXISTS unique_discussion_user_vote UNIQUE(discussion_id, user_id);
+
+-- Step 1: Create training_analytics table with primary key
 CREATE TABLE IF NOT EXISTS public.training_analytics (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    session_id text NOT NULL,
-    event_type text NOT NULL, -- 'page_view', 'section_start', 'section_complete', 'assessment_start', 'bookmark_create'
-    event_data jsonb DEFAULT '{}',
-    module_id uuid REFERENCES public.training_modules(id),
-    section_id uuid REFERENCES public.training_sections(id),
-    timestamp timestamp with time zone DEFAULT now() NOT NULL,
-    ip_address inet,
-    user_agent text
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Training completion reports
+-- Step 2: Add remaining fields to training_analytics
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS session_id text NOT NULL;
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS event_type text NOT NULL; -- 'page_view', 'section_start', 'section_complete', 'assessment_start', 'bookmark_create'
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS event_data jsonb DEFAULT '{}';
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS module_id uuid REFERENCES public.training_modules(id);
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS section_id uuid REFERENCES public.training_sections(id);
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.training_analytics
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+-- Step 1: Create training_reports table with primary key
 CREATE TABLE IF NOT EXISTS public.training_reports (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
-    report_type text NOT NULL, -- 'completion_summary', 'progress_report', 'assessment_analysis'
-    report_name text NOT NULL,
-    parameters jsonb DEFAULT '{}', -- Report parameters (date range, modules, users)
-    generated_by uuid NOT NULL REFERENCES public.users(id),
-    generated_at timestamp with time zone DEFAULT now() NOT NULL,
-    report_data jsonb DEFAULT '{}',
-    file_path text, -- Path to generated report file
-    expires_at timestamp with time zone
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to training_reports
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS report_type text NOT NULL; -- 'completion_summary', 'progress_report', 'assessment_analysis'
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS report_name text NOT NULL;
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS parameters jsonb DEFAULT '{}'; -- Report parameters (date range, modules, users)
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS generated_by uuid NOT NULL REFERENCES public.users(id);
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS generated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS report_data jsonb DEFAULT '{}';
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS file_path text; -- Path to generated report file
+
+ALTER TABLE public.training_reports
+    ADD COLUMN IF NOT EXISTS expires_at timestamp with time zone;
 
 -- ============================================================================
 -- TRAINING PORTAL INDEXES
@@ -6140,289 +6892,730 @@ COMMENT ON TABLE public.notification_routing_logs IS 'Audit log of notification 
 -- CENTRALIZED LOGGING SYSTEM TABLES
 -- ============================================================================
 
--- Centralized log entries table
+-- Step 1: Create centralized_logs table with primary key
 CREATE TABLE IF NOT EXISTS public.centralized_logs (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    timestamp timestamp with time zone DEFAULT now() NOT NULL,
-    level text NOT NULL CHECK (level IN ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')),
-    category text NOT NULL,
-    message text NOT NULL,
-    component text NOT NULL,
-    service_name text,
-    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    session_id text,
-    request_id text,
-    correlation_id text,
-    metadata jsonb DEFAULT '{}',
-    structured_data jsonb DEFAULT '{}',
-    stack_trace text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Log aggregation rules table
+-- Step 2: Add remaining fields to centralized_logs
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS level text NOT NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS category text NOT NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS message text NOT NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS service_name text;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS session_id text;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS request_id text;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS correlation_id text;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS structured_data jsonb DEFAULT '{}';
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS stack_trace text;
+
+ALTER TABLE public.centralized_logs
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.centralized_logs
+    ADD CONSTRAINT IF NOT EXISTS chk_centralized_logs_level CHECK (level IN ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'));
+
+-- Step 1: Create log_aggregation_rules table with primary key
 CREATE TABLE IF NOT EXISTS public.log_aggregation_rules (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    rule_name text NOT NULL,
-    pattern text NOT NULL,
-    aggregation_window_minutes integer NOT NULL DEFAULT 5,
-    threshold_count integer NOT NULL DEFAULT 10,
-    severity_level text NOT NULL,
-    alert_enabled boolean DEFAULT true NOT NULL,
-    notification_channels jsonb DEFAULT '[]',
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Log retention policies table
+-- Step 2: Add remaining fields to log_aggregation_rules
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS rule_name text NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS pattern text NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS aggregation_window_minutes integer NOT NULL DEFAULT 5;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS threshold_count integer NOT NULL DEFAULT 10;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS severity_level text NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS alert_enabled boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS notification_channels jsonb DEFAULT '[]';
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.log_aggregation_rules
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create log_retention_policies table with primary key
 CREATE TABLE IF NOT EXISTS public.log_retention_policies (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    policy_name text NOT NULL,
-    log_category text NOT NULL,
-    retention_days integer NOT NULL,
-    archive_enabled boolean DEFAULT false NOT NULL,
-    archive_storage_path text,
-    compression_enabled boolean DEFAULT true NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to log_retention_policies
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS policy_name text NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS log_category text NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS retention_days integer NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS archive_enabled boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS archive_storage_path text;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS compression_enabled boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.log_retention_policies
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- APPLICATION PERFORMANCE MONITORING (APM) TABLES
 -- ============================================================================
 
--- APM transactions table
+-- Step 1: Create apm_transactions table with primary key
 CREATE TABLE IF NOT EXISTS public.apm_transactions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    transaction_id text NOT NULL,
-    transaction_name text NOT NULL,
-    transaction_type text NOT NULL,
-    service_name text NOT NULL,
-    start_time timestamp with time zone NOT NULL,
-    end_time timestamp with time zone,
-    duration_ms integer,
-    status_code integer,
-    success boolean,
-    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    user_agent text,
-    ip_address inet,
-    url text,
-    method text,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- APM spans table (for distributed tracing)
+-- Step 2: Add remaining fields to apm_transactions
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS transaction_id text NOT NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS transaction_name text NOT NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS transaction_type text NOT NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS start_time timestamp with time zone NOT NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS end_time timestamp with time zone;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS duration_ms integer;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS status_code integer;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS success boolean;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS url text;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS method text;
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.apm_transactions
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create apm_spans table with primary key
 CREATE TABLE IF NOT EXISTS public.apm_spans (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    transaction_id text NOT NULL,
-    span_id text NOT NULL,
-    parent_span_id text,
-    operation_name text NOT NULL,
-    service_name text NOT NULL,
-    start_time timestamp with time zone NOT NULL,
-    end_time timestamp with time zone,
-    duration_ms integer,
-    tags jsonb DEFAULT '{}',
-    logs jsonb DEFAULT '[]',
-    status text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- APM errors table
+-- Step 2: Add remaining fields to apm_spans
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS transaction_id text NOT NULL;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS span_id text NOT NULL;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS parent_span_id text;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS operation_name text NOT NULL;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS start_time timestamp with time zone NOT NULL;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS end_time timestamp with time zone;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS duration_ms integer;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '{}';
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS logs jsonb DEFAULT '[]';
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS status text;
+
+ALTER TABLE public.apm_spans
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create apm_errors table with primary key
 CREATE TABLE IF NOT EXISTS public.apm_errors (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    error_id text NOT NULL,
-    transaction_id text,
-    service_name text NOT NULL,
-    error_type text NOT NULL,
-    error_message text NOT NULL,
-    stack_trace text,
-    occurred_at timestamp with time zone NOT NULL,
-    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    url text,
-    user_agent text,
-    ip_address inet,
-    context jsonb DEFAULT '{}',
-    fingerprint text,
-    first_seen timestamp with time zone DEFAULT now() NOT NULL,
-    last_seen timestamp with time zone DEFAULT now() NOT NULL,
-    occurrence_count integer DEFAULT 1 NOT NULL,
-    resolved boolean DEFAULT false NOT NULL,
-    resolved_at timestamp with time zone,
-    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- APM metrics table
+-- Step 2: Add remaining fields to apm_errors
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS error_id text NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS transaction_id text;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS error_type text NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS error_message text NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS stack_trace text;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS occurred_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS url text;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS user_agent text;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS ip_address inet;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS context jsonb DEFAULT '{}';
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS fingerprint text;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS first_seen timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS last_seen timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS occurrence_count integer DEFAULT 1 NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS resolved boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS resolved_at timestamp with time zone;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.apm_errors
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create apm_metrics table with primary key
 CREATE TABLE IF NOT EXISTS public.apm_metrics (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    metric_name text NOT NULL,
-    metric_type text NOT NULL CHECK (metric_type IN ('counter', 'gauge', 'histogram', 'timer')),
-    service_name text NOT NULL,
-    value numeric NOT NULL,
-    tags jsonb DEFAULT '{}',
-    timestamp timestamp with time zone NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- APM performance baselines table
+-- Step 2: Add remaining fields to apm_metrics
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS metric_name text NOT NULL;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS metric_type text NOT NULL;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS value numeric NOT NULL;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS tags jsonb DEFAULT '{}';
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS timestamp timestamp with time zone NOT NULL;
+
+ALTER TABLE public.apm_metrics
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.apm_metrics
+    ADD CONSTRAINT IF NOT EXISTS chk_apm_metrics_type CHECK (metric_type IN ('counter', 'gauge', 'histogram', 'timer'));
+
+-- Step 1: Create apm_performance_baselines table with primary key
 CREATE TABLE IF NOT EXISTS public.apm_performance_baselines (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    service_name text NOT NULL,
-    operation_name text NOT NULL,
-    metric_type text NOT NULL,
-    baseline_value numeric NOT NULL,
-    threshold_warning numeric NOT NULL,
-    threshold_critical numeric NOT NULL,
-    calculation_period_days integer DEFAULT 7 NOT NULL,
-    last_calculated timestamp with time zone DEFAULT now() NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to apm_performance_baselines
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS service_name text NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS operation_name text NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS metric_type text NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS baseline_value numeric NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS threshold_warning numeric NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS threshold_critical numeric NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS calculation_period_days integer DEFAULT 7 NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS last_calculated timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.apm_performance_baselines
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
 
 -- ============================================================================
 -- DISASTER RECOVERY SYSTEM TABLES
 -- ============================================================================
 
--- DR objectives table
+-- Step 1: Create dr_objectives table with primary key
 CREATE TABLE IF NOT EXISTS public.dr_objectives (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    component text NOT NULL,
-    rto_minutes integer NOT NULL,
-    rpo_minutes integer NOT NULL,
-    priority integer NOT NULL CHECK (priority >= 1 AND priority <= 5),
-    automated_recovery boolean DEFAULT false NOT NULL,
-    manual_steps_required boolean DEFAULT true NOT NULL,
-    validation_checks jsonb DEFAULT '[]',
-    dependencies jsonb DEFAULT '[]',
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- DR test results table
+-- Step 2: Add remaining fields to dr_objectives
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS rto_minutes integer NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS rpo_minutes integer NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS priority integer NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS automated_recovery boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS manual_steps_required boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS validation_checks jsonb DEFAULT '[]';
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS dependencies jsonb DEFAULT '[]';
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+ALTER TABLE public.dr_objectives
+    ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.dr_objectives
+    ADD CONSTRAINT IF NOT EXISTS chk_dr_objectives_priority CHECK (priority >= 1 AND priority <= 5);
+
+-- Step 1: Create dr_test_results table with primary key
 CREATE TABLE IF NOT EXISTS public.dr_test_results (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    test_id text NOT NULL,
-    test_type text NOT NULL,
-    component text NOT NULL,
-    start_time timestamp with time zone NOT NULL,
-    end_time timestamp with time zone,
-    duration_minutes numeric,
-    status text NOT NULL CHECK (status IN ('running', 'passed', 'failed', 'cancelled')),
-    rto_achieved boolean,
-    rpo_achieved boolean,
-    validation_results jsonb DEFAULT '{}',
-    error_messages jsonb DEFAULT '[]',
-    recommendations jsonb DEFAULT '[]',
-    metadata jsonb DEFAULT '{}',
-    executed_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- DR events table
+-- Step 2: Add remaining fields to dr_test_results
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS test_id text NOT NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS test_type text NOT NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS start_time timestamp with time zone NOT NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS end_time timestamp with time zone;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS duration_minutes numeric;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS rto_achieved boolean;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS rpo_achieved boolean;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS validation_results jsonb DEFAULT '{}';
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS error_messages jsonb DEFAULT '[]';
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS recommendations jsonb DEFAULT '[]';
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS executed_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.dr_test_results
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.dr_test_results
+    ADD CONSTRAINT IF NOT EXISTS chk_dr_test_results_status CHECK (status IN ('running', 'passed', 'failed', 'cancelled'));
+
+-- Step 1: Create dr_events table with primary key
 CREATE TABLE IF NOT EXISTS public.dr_events (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    event_id text NOT NULL,
-    event_type text NOT NULL,
-    severity text NOT NULL CHECK (severity IN ('info', 'warning', 'critical', 'emergency')),
-    component text NOT NULL,
-    description text NOT NULL,
-    status text NOT NULL,
-    recovery_actions jsonb DEFAULT '[]',
-    occurred_at timestamp with time zone NOT NULL,
-    resolved_at timestamp with time zone,
-    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- DR backup metadata table
+-- Step 2: Add remaining fields to dr_events
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS event_id text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS event_type text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS severity text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS description text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS status text NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS recovery_actions jsonb DEFAULT '[]';
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS occurred_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS resolved_at timestamp with time zone;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.dr_events
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.dr_events
+    ADD CONSTRAINT IF NOT EXISTS chk_dr_events_severity CHECK (severity IN ('info', 'warning', 'critical', 'emergency'));
+
+-- Step 1: Create dr_backup_metadata table with primary key
 CREATE TABLE IF NOT EXISTS public.dr_backup_metadata (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    backup_id text NOT NULL,
-    component text NOT NULL,
-    backup_type text NOT NULL,
-    file_path text NOT NULL,
-    file_size bigint,
-    checksum text,
-    encryption_enabled boolean DEFAULT false NOT NULL,
-    compression_enabled boolean DEFAULT true NOT NULL,
-    backup_started timestamp with time zone NOT NULL,
-    backup_completed timestamp with time zone,
-    backup_status text NOT NULL CHECK (backup_status IN ('running', 'completed', 'failed')),
-    retention_until timestamp with time zone,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to dr_backup_metadata
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS backup_id text NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS backup_type text NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS file_path text NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS file_size bigint;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS checksum text;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS encryption_enabled boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS compression_enabled boolean DEFAULT true NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS backup_started timestamp with time zone NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS backup_completed timestamp with time zone;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS backup_status text NOT NULL;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS retention_until timestamp with time zone;
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.dr_backup_metadata
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.dr_backup_metadata
+    ADD CONSTRAINT IF NOT EXISTS chk_dr_backup_metadata_status CHECK (backup_status IN ('running', 'completed', 'failed'));
 
 -- ============================================================================
 -- CONFIGURATION MANAGEMENT TABLES
 -- ============================================================================
 
--- Configuration versions table
+-- Step 1: Create configuration_versions table with primary key
 CREATE TABLE IF NOT EXISTS public.configuration_versions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    version_id text NOT NULL,
-    component text NOT NULL,
-    configuration_data jsonb NOT NULL,
-    checksum text NOT NULL,
-    created_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    change_description text,
-    is_active boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Configuration drift detection table
+-- Step 2: Add remaining fields to configuration_versions
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS version_id text NOT NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS configuration_data jsonb NOT NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS checksum text NOT NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS created_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS change_description text;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.configuration_versions
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 1: Create configuration_drift table with primary key
 CREATE TABLE IF NOT EXISTS public.configuration_drift (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    component text NOT NULL,
-    field_path text NOT NULL,
-    expected_value text NOT NULL,
-    actual_value text NOT NULL,
-    drift_severity text NOT NULL CHECK (drift_severity IN ('ok', 'warning', 'error')),
-    detected_at timestamp with time zone NOT NULL,
-    resolved_at timestamp with time zone,
-    resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    auto_remediated boolean DEFAULT false NOT NULL,
-    metadata jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
 
--- Configuration compliance scans table
+-- Step 2: Add remaining fields to configuration_drift
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS field_path text NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS expected_value text NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS actual_value text NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS drift_severity text NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS detected_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS resolved_at timestamp with time zone;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS resolved_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS auto_remediated boolean DEFAULT false NOT NULL;
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
+
+ALTER TABLE public.configuration_drift
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.configuration_drift
+    ADD CONSTRAINT IF NOT EXISTS chk_configuration_drift_severity CHECK (drift_severity IN ('ok', 'warning', 'error'));
+
+-- Step 1: Create configuration_compliance_scans table with primary key
 CREATE TABLE IF NOT EXISTS public.configuration_compliance_scans (
-    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
-    tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
-    scan_id text NOT NULL,
-    framework text NOT NULL,
-    component text NOT NULL,
-    rule_id text NOT NULL,
-    rule_description text NOT NULL,
-    compliance_status text NOT NULL CHECK (compliance_status IN ('compliant', 'non_compliant', 'not_applicable')),
-    severity text NOT NULL,
-    finding_details jsonb DEFAULT '{}',
-    remediation_steps jsonb DEFAULT '[]',
-    scanned_at timestamp with time zone NOT NULL,
-    remediated_at timestamp with time zone,
-    remediated_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY
 );
+
+-- Step 2: Add remaining fields to configuration_compliance_scans
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS scan_id text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS framework text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS component text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS rule_id text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS rule_description text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS compliance_status text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS severity text NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS finding_details jsonb DEFAULT '{}';
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS remediation_steps jsonb DEFAULT '[]';
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS scanned_at timestamp with time zone NOT NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS remediated_at timestamp with time zone;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS remediated_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.configuration_compliance_scans
+    ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT now() NOT NULL;
+
+-- Step 3: Add constraint
+ALTER TABLE public.configuration_compliance_scans
+    ADD CONSTRAINT IF NOT EXISTS chk_configuration_compliance_scans_status CHECK (compliance_status IN ('compliant', 'non_compliant', 'not_applicable'));
 
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE OPTIMIZATION

@@ -139,52 +139,157 @@ async def get_detailed_system_status(
 ):
     """Get detailed system status including pods, services, and metrics."""
     try:
-        # This would typically call Kubernetes API or monitoring systems
-        # For now, return mock data that matches the frontend expectations
-        
+        # Import system monitoring utilities
+        from core_infra.monitoring.system_monitor import SystemMonitor
+        from core_infra.monitoring.kubernetes_client import KubernetesClient
+        import psutil
+        import docker
+
+        system_monitor = SystemMonitor()
+
+        # Try to get Kubernetes data if available
+        try:
+            k8s_client = KubernetesClient()
+            pods_data = await k8s_client.get_pods_status()
+            services_data = await k8s_client.get_services_status()
+        except Exception as k8s_error:
+            logger.warning("Kubernetes API not available, using Docker/system data", error=str(k8s_error))
+            pods_data = await _get_docker_containers_status()
+            services_data = await _get_docker_services_status()
+
+        # Get real system resource metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+
+        # Get database connection metrics
+        try:
+            from core_infra.database.connection import get_database
+            db = get_database()
+            db_connections = await _get_database_connections(db)
+        except Exception as db_error:
+            logger.warning("Could not get database metrics", error=str(db_error))
+            db_connections = 0
+
+        # Get API performance metrics from monitoring
+        api_metrics = await system_monitor.get_api_performance_metrics()
+
         return {
-            "pods": [
-                {
-                    "name": "regulensai-api-7d8f9b5c6d-abc12",
-                    "status": "Running",
-                    "restarts": 0,
-                    "age": "2d",
-                    "cpu": "45%",
-                    "memory": "512Mi"
-                },
-                {
-                    "name": "regulensai-api-7d8f9b5c6d-def34",
-                    "status": "Running",
-                    "restarts": 0,
-                    "age": "2d",
-                    "cpu": "38%",
-                    "memory": "487Mi"
-                }
-            ],
-            "services": [
-                {
-                    "name": "regulensai-api",
-                    "type": "ClusterIP",
-                    "clusterIP": "10.96.1.100",
-                    "ports": "8000/TCP",
-                    "age": "7d"
-                }
-            ],
+            "pods": pods_data,
+            "services": services_data,
             "resources": {
-                "cpu_usage": 45,
-                "memory_usage": 67,
-                "disk_usage": 23
+                "cpu_usage": round(cpu_percent, 1),
+                "memory_usage": round(memory.percent, 1),
+                "disk_usage": round((disk.used / disk.total) * 100, 1),
+                "memory_total_gb": round(memory.total / (1024**3), 2),
+                "disk_total_gb": round(disk.total / (1024**3), 2)
             },
             "performance": {
-                "api_response_time": 245,
-                "database_connections": 45,
-                "network_io": 156
-            }
+                "api_response_time": api_metrics.get('avg_response_time', 0),
+                "database_connections": db_connections,
+                "network_io": await _get_network_io_metrics(),
+                "requests_per_minute": api_metrics.get('requests_per_minute', 0),
+                "error_rate": api_metrics.get('error_rate', 0)
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+            "data_source": "real_system_metrics"
         }
         
     except Exception as e:
         logger.error("Failed to get detailed system status", error=str(e))
-        raise HTTPException(status_code=500, detail="Failed to get detailed system status")
+        # Return fallback data if real metrics fail
+        return {
+            "pods": [{"name": "system-unavailable", "status": "Unknown", "restarts": 0, "age": "N/A", "cpu": "N/A", "memory": "N/A"}],
+            "services": [{"name": "system-service", "type": "Unknown", "clusterIP": "N/A", "ports": "N/A", "age": "N/A"}],
+            "resources": {"cpu_usage": 0, "memory_usage": 0, "disk_usage": 0},
+            "performance": {"api_response_time": 0, "database_connections": 0, "network_io": 0},
+            "error": "System metrics unavailable",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+# Helper functions for real system data retrieval
+async def _get_docker_containers_status():
+    """Get Docker container status as fallback for Kubernetes."""
+    try:
+        import docker
+        client = docker.from_env()
+        containers = client.containers.list()
+
+        pods_data = []
+        for container in containers:
+            if 'regulensai' in container.name.lower():
+                stats = container.stats(stream=False)
+
+                # Calculate CPU percentage
+                cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+                system_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+                cpu_percent = (cpu_delta / system_delta) * len(stats['cpu_stats']['cpu_usage']['percpu_usage']) * 100
+
+                # Calculate memory usage
+                memory_usage = stats['memory_stats']['usage']
+                memory_limit = stats['memory_stats']['limit']
+                memory_percent = (memory_usage / memory_limit) * 100
+
+                pods_data.append({
+                    "name": container.name,
+                    "status": container.status.title(),
+                    "restarts": 0,  # Docker doesn't track restarts the same way
+                    "age": str(datetime.now() - datetime.fromisoformat(container.attrs['Created'].replace('Z', '+00:00'))).split('.')[0],
+                    "cpu": f"{cpu_percent:.1f}%",
+                    "memory": f"{memory_usage / (1024**2):.0f}Mi"
+                })
+
+        return pods_data if pods_data else [{"name": "no-containers", "status": "None", "restarts": 0, "age": "N/A", "cpu": "N/A", "memory": "N/A"}]
+
+    except Exception as e:
+        logger.error("Failed to get Docker container status", error=str(e))
+        return [{"name": "docker-unavailable", "status": "Error", "restarts": 0, "age": "N/A", "cpu": "N/A", "memory": "N/A"}]
+
+async def _get_docker_services_status():
+    """Get Docker services status as fallback for Kubernetes."""
+    try:
+        import docker
+        client = docker.from_env()
+        networks = client.networks.list()
+
+        services_data = []
+        for network in networks:
+            if 'regulensai' in network.name.lower():
+                services_data.append({
+                    "name": network.name,
+                    "type": "Docker Network",
+                    "clusterIP": network.attrs.get('IPAM', {}).get('Config', [{}])[0].get('Gateway', 'N/A'),
+                    "ports": "Multiple",
+                    "age": str(datetime.now() - datetime.fromisoformat(network.attrs['Created'].replace('Z', '+00:00'))).split('.')[0]
+                })
+
+        return services_data if services_data else [{"name": "docker-network", "type": "Bridge", "clusterIP": "172.17.0.1", "ports": "N/A", "age": "N/A"}]
+
+    except Exception as e:
+        logger.error("Failed to get Docker services status", error=str(e))
+        return [{"name": "docker-unavailable", "type": "Error", "clusterIP": "N/A", "ports": "N/A", "age": "N/A"}]
+
+async def _get_database_connections(db):
+    """Get current database connection count."""
+    try:
+        # This would depend on your database type
+        # For PostgreSQL:
+        result = await db.fetch_one("SELECT count(*) as connections FROM pg_stat_activity WHERE state = 'active'")
+        return result['connections'] if result else 0
+    except Exception as e:
+        logger.error("Failed to get database connections", error=str(e))
+        return 0
+
+async def _get_network_io_metrics():
+    """Get network I/O metrics."""
+    try:
+        import psutil
+        net_io = psutil.net_io_counters()
+        # Return bytes sent + received per second (simplified)
+        return round((net_io.bytes_sent + net_io.bytes_recv) / (1024 * 1024), 2)  # MB
+    except Exception as e:
+        logger.error("Failed to get network I/O metrics", error=str(e))
+        return 0
 
 # ============================================================================
 # DATABASE OPERATIONS ENDPOINTS

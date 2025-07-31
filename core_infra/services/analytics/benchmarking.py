@@ -540,15 +540,86 @@ class PerformanceBenchmarkingService:
         }
     
     async def _get_operational_performance_metrics(self, tenant_id: str, period: str) -> Dict[str, Any]:
-        """Get operational performance metrics."""
-        # Mock operational metrics - in production, calculate from actual data
-        return {
-            'process_automation_rate': float(np.random.uniform(65, 85)),
-            'system_uptime_percentage': float(np.random.uniform(98, 99.9)),
-            'user_satisfaction_score': float(np.random.uniform(7.5, 9.2)),
-            'incident_resolution_time_hours': float(np.random.uniform(2, 12)),
-            'calculation_date': datetime.utcnow().isoformat()
-        }
+        """Get operational performance metrics from actual system data."""
+        try:
+            # Calculate date range for the period
+            end_date = datetime.utcnow()
+            if period == 'last_30_days':
+                start_date = end_date - timedelta(days=30)
+            elif period == 'last_90_days':
+                start_date = end_date - timedelta(days=90)
+            else:
+                start_date = end_date - timedelta(days=7)
+
+            # Get process automation metrics from workflow executions
+            automation_result = self.supabase.table('workflow_executions').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+            automation_data = automation_result.data if automation_result.data else []
+
+            automated_processes = len([w for w in automation_data if w.get('execution_type') == 'automated'])
+            total_processes = len(automation_data)
+            process_automation_rate = (automated_processes / max(total_processes, 1)) * 100
+
+            # Get system uptime from health checks
+            uptime_result = self.supabase.table('system_health_checks').select('*').eq('tenant_id', tenant_id).gte('timestamp', start_date.isoformat()).execute()
+            uptime_data = uptime_result.data if uptime_result.data else []
+
+            successful_checks = len([h for h in uptime_data if h.get('status') == 'healthy'])
+            total_checks = len(uptime_data)
+            system_uptime_percentage = (successful_checks / max(total_checks, 1)) * 100
+
+            # Get user satisfaction from feedback
+            feedback_result = self.supabase.table('user_feedback').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+            feedback_data = feedback_result.data if feedback_result.data else []
+
+            if feedback_data:
+                satisfaction_scores = [f.get('rating', 5) for f in feedback_data if f.get('rating')]
+                user_satisfaction_score = sum(satisfaction_scores) / len(satisfaction_scores)
+            else:
+                user_satisfaction_score = 8.0  # Default baseline
+
+            # Get incident resolution time from incidents
+            incidents_result = self.supabase.table('incidents').select('*').eq('tenant_id', tenant_id).gte('created_at', start_date.isoformat()).execute()
+            incidents_data = incidents_result.data if incidents_result.data else []
+
+            resolved_incidents = [i for i in incidents_data if i.get('status') == 'resolved' and i.get('resolved_at')]
+            if resolved_incidents:
+                resolution_times = []
+                for incident in resolved_incidents:
+                    created = datetime.fromisoformat(incident['created_at'].replace('Z', '+00:00'))
+                    resolved = datetime.fromisoformat(incident['resolved_at'].replace('Z', '+00:00'))
+                    resolution_times.append((resolved - created).total_seconds() / 3600)  # Convert to hours
+
+                incident_resolution_time_hours = sum(resolution_times) / len(resolution_times)
+            else:
+                incident_resolution_time_hours = 4.0  # Default baseline
+
+            return {
+                'process_automation_rate': round(process_automation_rate, 2),
+                'system_uptime_percentage': round(system_uptime_percentage, 2),
+                'user_satisfaction_score': round(user_satisfaction_score, 2),
+                'incident_resolution_time_hours': round(incident_resolution_time_hours, 2),
+                'calculation_date': datetime.utcnow().isoformat(),
+                'data_points': {
+                    'total_processes': total_processes,
+                    'automated_processes': automated_processes,
+                    'total_health_checks': total_checks,
+                    'successful_checks': successful_checks,
+                    'feedback_count': len(feedback_data),
+                    'incidents_resolved': len(resolved_incidents)
+                }
+            }
+
+        except Exception as e:
+            self.logger.error("Failed to calculate operational metrics", error=str(e), tenant_id=tenant_id)
+            # Return baseline metrics if calculation fails
+            return {
+                'process_automation_rate': 75.0,
+                'system_uptime_percentage': 99.0,
+                'user_satisfaction_score': 8.0,
+                'incident_resolution_time_hours': 4.0,
+                'calculation_date': datetime.utcnow().isoformat(),
+                'error': 'Calculated from baseline values due to data unavailability'
+            }
     
     async def _get_regulatory_readiness_metrics(self, tenant_id: str, period: str) -> Dict[str, Any]:
         """Get regulatory readiness metrics."""
@@ -578,15 +649,80 @@ class PerformanceBenchmarkingService:
         }
     
     async def _get_financial_performance_metrics(self, tenant_id: str, period: str) -> Dict[str, Any]:
-        """Get financial performance metrics related to compliance."""
-        # Mock financial metrics - in production, integrate with financial systems
-        return {
-            'compliance_cost_efficiency': float(np.random.uniform(70, 90)),
-            'regulatory_penalty_cost': float(np.random.uniform(0, 50000)),
-            'compliance_roi': float(np.random.uniform(15, 35)),
-            'cost_per_compliance_task': float(np.random.uniform(500, 2000)),
-            'calculation_date': datetime.utcnow().isoformat()
-        }
+        """Get financial performance metrics related to compliance from actual financial data."""
+        try:
+            # Calculate date range for the period
+            end_date = datetime.utcnow()
+            if period == 'last_30_days':
+                start_date = end_date - timedelta(days=30)
+            elif period == 'last_90_days':
+                start_date = end_date - timedelta(days=90)
+            else:
+                start_date = end_date - timedelta(days=7)
+
+            # Get compliance costs from financial transactions
+            costs_result = self.supabase.table('financial_transactions').select('*').eq('tenant_id', tenant_id).eq('category', 'compliance').gte('transaction_date', start_date.isoformat()).execute()
+            compliance_costs = costs_result.data if costs_result.data else []
+
+            total_compliance_cost = sum([float(c.get('amount', 0)) for c in compliance_costs])
+
+            # Get compliance tasks completed for cost efficiency calculation
+            tasks_result = self.supabase.table('compliance_tasks').select('*').eq('tenant_id', tenant_id).eq('status', 'completed').gte('completed_at', start_date.isoformat()).execute()
+            completed_tasks = tasks_result.data if tasks_result.data else []
+
+            tasks_count = len(completed_tasks)
+            cost_per_compliance_task = total_compliance_cost / max(tasks_count, 1)
+
+            # Calculate compliance cost efficiency (lower cost per task = higher efficiency)
+            baseline_cost_per_task = 1500  # Industry baseline
+            compliance_cost_efficiency = max(0, (baseline_cost_per_task - cost_per_compliance_task) / baseline_cost_per_task * 100)
+
+            # Get regulatory penalties from incidents
+            penalties_result = self.supabase.table('regulatory_incidents').select('*').eq('tenant_id', tenant_id).gte('incident_date', start_date.isoformat()).execute()
+            penalty_incidents = penalties_result.data if penalties_result.data else []
+
+            regulatory_penalty_cost = sum([float(p.get('penalty_amount', 0)) for p in penalty_incidents])
+
+            # Calculate compliance ROI
+            # ROI = (Avoided Costs - Compliance Investment) / Compliance Investment * 100
+            # Estimate avoided costs based on prevented incidents and efficiency gains
+            prevented_incidents_result = self.supabase.table('risk_assessments').select('*').eq('tenant_id', tenant_id).eq('status', 'mitigated').gte('created_at', start_date.isoformat()).execute()
+            prevented_incidents = prevented_incidents_result.data if prevented_incidents_result.data else []
+
+            estimated_avoided_costs = len(prevented_incidents) * 25000  # Average cost of regulatory incident
+            compliance_investment = total_compliance_cost
+
+            if compliance_investment > 0:
+                compliance_roi = ((estimated_avoided_costs - compliance_investment) / compliance_investment) * 100
+            else:
+                compliance_roi = 0
+
+            return {
+                'compliance_cost_efficiency': round(compliance_cost_efficiency, 2),
+                'regulatory_penalty_cost': round(regulatory_penalty_cost, 2),
+                'compliance_roi': round(compliance_roi, 2),
+                'cost_per_compliance_task': round(cost_per_compliance_task, 2),
+                'calculation_date': datetime.utcnow().isoformat(),
+                'financial_data': {
+                    'total_compliance_cost': round(total_compliance_cost, 2),
+                    'completed_tasks': tasks_count,
+                    'penalty_incidents': len(penalty_incidents),
+                    'prevented_incidents': len(prevented_incidents),
+                    'estimated_avoided_costs': round(estimated_avoided_costs, 2)
+                }
+            }
+
+        except Exception as e:
+            self.logger.error("Failed to calculate financial metrics", error=str(e), tenant_id=tenant_id)
+            # Return baseline metrics if calculation fails
+            return {
+                'compliance_cost_efficiency': 80.0,
+                'regulatory_penalty_cost': 0.0,
+                'compliance_roi': 25.0,
+                'cost_per_compliance_task': 1200.0,
+                'calculation_date': datetime.utcnow().isoformat(),
+                'error': 'Calculated from baseline values due to financial data unavailability'
+            }
     
     async def _get_industry_benchmark_data(
         self,

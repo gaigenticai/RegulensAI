@@ -469,6 +469,109 @@ setup_database() {
 }
 
 # ============================================================================
+# ADVANCED MONITORING DEPLOYMENT
+# ============================================================================
+
+deploy_advanced_monitoring() {
+    print_step "Deploying advanced monitoring stack..."
+
+    local monitoring_script="$SCRIPT_DIR/monitoring/deploy-monitoring.sh"
+
+    if [ -f "$monitoring_script" ]; then
+        print_step "Found advanced monitoring deployment script"
+
+        # Check if we're in a Kubernetes environment
+        if check_command kubectl && kubectl cluster-info &> /dev/null; then
+            print_step "Kubernetes detected - deploying full monitoring stack..."
+
+            # Make script executable
+            chmod +x "$monitoring_script"
+
+            # Set environment variables for monitoring deployment
+            export GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-$(generate_secure_key | head -c 16)}"
+            export NAMESPACE="regulensai-monitoring"
+
+            # Run the monitoring deployment script
+            if "$monitoring_script"; then
+                print_success "Advanced monitoring stack deployed successfully"
+
+                # Update .env with monitoring configuration
+                echo "" >> "$ENV_FILE"
+                echo "# Advanced Monitoring Configuration" >> "$ENV_FILE"
+                echo "MONITORING_ENABLED=true" >> "$ENV_FILE"
+                echo "GRAFANA_ADMIN_PASSWORD=$GRAFANA_ADMIN_PASSWORD" >> "$ENV_FILE"
+                echo "MONITORING_NAMESPACE=$NAMESPACE" >> "$ENV_FILE"
+
+                print_success "Monitoring configuration added to .env"
+            else
+                print_warning "Advanced monitoring deployment failed, continuing with basic monitoring"
+            fi
+        else
+            print_warning "Kubernetes not available - using Docker-based monitoring only"
+            deploy_docker_monitoring
+        fi
+    else
+        print_warning "Advanced monitoring script not found at $monitoring_script"
+        print_step "Using basic Docker-based monitoring..."
+        deploy_docker_monitoring
+    fi
+}
+
+deploy_docker_monitoring() {
+    print_step "Setting up Docker-based monitoring..."
+
+    # Create enhanced monitoring configuration for Docker
+    cat > monitoring/docker-monitoring.yml << EOF
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: regulensai-prometheus
+    ports:
+      - "${ASSIGNED_PORT_PROMETHEUS:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - regulensai-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: regulensai-grafana
+    ports:
+      - "${ASSIGNED_PORT_GRAFANA:-3001}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - regulensai-network
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  regulensai-network:
+    external: true
+EOF
+
+    # Start Docker monitoring services
+    docker-compose -f monitoring/docker-monitoring.yml up -d
+
+    print_success "Docker-based monitoring deployed"
+}
+
+# ============================================================================
 # SERVICE STARTUP
 # ============================================================================
 
@@ -520,6 +623,9 @@ start_basic_services() {
     wait_for_service "Jaeger" 16686
     wait_for_service "Prometheus" 9090
     wait_for_service "Grafana" 3001
+
+    # Deploy advanced monitoring if script exists
+    deploy_advanced_monitoring
 
     print_step "Building application images..."
     docker-compose build
