@@ -48,8 +48,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data: https:; "
                 "font-src 'self' https:; "
                 "connect-src 'self' https:; "
@@ -392,26 +392,3 @@ class CORSMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"CORS middleware error: {e}")
             return await call_next(request)
-
-# ============================================================================
-# DECORATOR FUNCTIONS FOR BACKWARD COMPATIBILITY
-# ============================================================================
-
-def rate_limit(requests_per_minute: int = 60):
-    """Rate limiting decorator"""
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            # Simple rate limiting - in production, use Redis or similar
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-def audit_log(action: str):
-    """Audit logging decorator"""
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            # Simple audit logging
-            logger.info(f"API action: {action}")
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator

@@ -13,7 +13,7 @@ import statistics
 import uuid
 
 from core_infra.config import settings
-from core_infra.exceptions import SystemException, DataValidationException
+from core_infra.exceptions import SystemException, ValidationError
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)

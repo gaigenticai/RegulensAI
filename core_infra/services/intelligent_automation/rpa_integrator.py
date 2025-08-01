@@ -13,7 +13,7 @@ from enum import Enum
 import uuid
 
 from core_infra.config import settings
-from core_infra.exceptions import SystemException, DataValidationException
+from core_infra.exceptions import SystemException, ValidationError
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)
@@ -123,7 +123,7 @@ class RPAIntegrator:
             # Validate process exists
             process_def = self.process_definitions.get(process_name)
             if not process_def:
-                raise DataValidationException(f"Unknown RPA process: {process_name}")
+                raise ValidationError(f"Unknown RPA process: {process_name}")
             
             # Create execution ID
             execution_id = str(uuid.uuid4())
@@ -235,7 +235,7 @@ class RPAIntegrator:
         """Get the status of an RPA process execution."""
         execution = self.active_executions.get(execution_id)
         if not execution:
-            raise DataValidationException(f"Execution not found: {execution_id}")
+            raise ValidationError(f"Execution not found: {execution_id}")
         
         return execution
     

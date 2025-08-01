@@ -15,7 +15,7 @@ import hashlib
 import json
 
 from core_infra.database.connection import get_database
-from core_infra.services.monitoring import record_database_operation, track_operation
+from core_infra.services.monitoring import track_operation
 from core_infra.config import get_settings
 from .processor import DocumentProcessor
 from .analyzer import RegulatoryAnalyzer

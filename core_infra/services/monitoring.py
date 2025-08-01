@@ -30,21 +30,6 @@ def record_database_operation(operation: str, table: str):
     """Record database operation metrics"""
     database_operations.labels(operation=operation, table=table).inc()
 
-def track_operation(operation_name: str):
-    """Simple operation tracking decorator"""
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
-            try:
-                result = await func(*args, **kwargs)
-                return result
-            except Exception as e:
-                import structlog
-                logger = structlog.get_logger(__name__)
-                logger.error(f"Operation {operation_name} failed", error=str(e))
-                raise
-        return wrapper
-    return decorator
-
 class MetricsMiddleware:
     """Middleware to collect HTTP metrics"""
     

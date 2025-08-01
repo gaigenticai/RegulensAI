@@ -16,7 +16,7 @@ import io
 from enum import Enum
 
 from core_infra.config import settings
-from core_infra.exceptions import DataValidationException
+from core_infra.exceptions import ValidationError
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ class KYCVerifier:
             return np.array(image)
         except Exception as e:
             logger.error(f"Failed to decode image: {e}")
-            raise DataValidationException("Invalid image data")
+            raise ValidationError("Invalid image data")
     
     def _detect_document_type(self, image: np.ndarray, expected_type: Optional[str]) -> DocumentType:
         """Detect document type from image."""

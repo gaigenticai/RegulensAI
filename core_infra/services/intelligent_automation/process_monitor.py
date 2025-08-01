@@ -61,22 +61,13 @@ class ProcessMonitor:
             'throughput': {'warning': 10, 'critical': 5},
             'queue_depth': {'warning': 100, 'critical': 500}
         }
-        self._background_tasks_started = False
+        self._start_background_tasks()
         logger.info("Process monitor initialized")
-
+    
     def _start_background_tasks(self):
         """Start background monitoring tasks."""
-        if self._background_tasks_started:
-            return
-        try:
-            # Only start tasks if we're in an async context
-            loop = asyncio.get_running_loop()
-            asyncio.create_task(self._metrics_aggregator())
-            asyncio.create_task(self._anomaly_detector())
-            self._background_tasks_started = True
-        except RuntimeError:
-            # No event loop running, tasks will be started later
-            pass
+        asyncio.create_task(self._metrics_aggregator())
+        asyncio.create_task(self._anomaly_detector())
     
     @monitor_performance
     async def start_monitoring(self, process_id: str, config: Dict[str, Any] = None) -> bool:
