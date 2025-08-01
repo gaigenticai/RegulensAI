@@ -128,7 +128,7 @@ shortuuid>=1.0.11
 validators>=0.22.0
 
 # CORS and Middleware
-python-cors>=1.7.0
+# python-cors replaced with FastAPI built-in CORS support
 
 # SMS and Communication
 twilio>=8.10.0
@@ -233,7 +233,7 @@ yfinance>=0.2.22
 census>=0.8.22
 
 # Anti-Money Laundering
-aml-python>=0.1.0
+# aml-python package not available - removed
 
 # Know Your Customer
 kyc-verification>=0.2.0
@@ -708,4 +708,5 @@ memory-profiler>=0.61.0
 
 # Advanced Serialization
 orjson>=3.9.0
-msgpack>=1.0.0 faker
+msgpack>=1.0.0
+faker

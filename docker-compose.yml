@@ -314,10 +314,8 @@ services:
 
 networks:
   regulens-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.21.0.0/16
+    name: regulens-network
+    external: true
 
 # ============================================================================
 # VOLUMES
