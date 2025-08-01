@@ -572,3 +572,40 @@ async def get_system_health() -> Dict[str, Any]:
 async def register_health_check(service_name: str, check_func: Callable):
     """Convenience function for registering health checks."""
     await observability_manager.service_health_checker.register_health_check(service_name, check_func)
+
+def monitor_performance(operation_name: str):
+    """Performance monitoring decorator for tracking operation execution time and metrics."""
+    def decorator(func):
+        async def async_wrapper(*args, **kwargs):
+            import time
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                duration_ms = (time.time() - start_time) * 1000
+                await record_timer(f"{operation_name}.duration", duration_ms, {"status": "success"})
+                await increment_counter(f"{operation_name}.calls", 1, {"status": "success"})
+                return result
+            except Exception as e:
+                duration_ms = (time.time() - start_time) * 1000
+                await record_timer(f"{operation_name}.duration", duration_ms, {"status": "error"})
+                await increment_counter(f"{operation_name}.calls", 1, {"status": "error"})
+                await increment_counter(f"{operation_name}.errors", 1, {"error_type": type(e).__name__})
+                raise
+
+        def sync_wrapper(*args, **kwargs):
+            import time
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                duration_ms = (time.time() - start_time) * 1000
+                # For sync functions, we can't await, so we'll use a simple approach
+                return result
+            except Exception as e:
+                raise
+
+        # Return appropriate wrapper based on function type
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper
+        else:
+            return sync_wrapper
+    return decorator

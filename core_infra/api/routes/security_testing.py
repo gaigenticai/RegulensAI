@@ -18,7 +18,7 @@ from security.penetration_testing.automated_security_tests import (
 from core_infra.autoscaling.controller import (
     get_scaling_status, set_scaling_parameters, enable_autoscaling, disable_autoscaling
 )
-from core_infra.exceptions import SecurityException
+from core_infra.exceptions import SystemException
 
 # Initialize logging
 logger = structlog.get_logger(__name__)

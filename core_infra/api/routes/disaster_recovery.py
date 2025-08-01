@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import structlog
 
-from core_infra.auth.dependencies import get_current_user, require_permission
+from core_infra.api.auth import get_current_user, require_permission
 from core_infra.disaster_recovery.dr_manager import (
     dr_manager,
     get_dr_status,

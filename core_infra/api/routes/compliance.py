@@ -361,3 +361,101 @@ async def get_compliance_program(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve compliance program"
         )
+
+# ============================================================================
+# COMPLIANCE RULES ENDPOINTS
+# ============================================================================
+
+class ComplianceRuleResponse(BaseModel):
+    """Compliance rule response model."""
+    id: str
+    name: str
+    description: str
+    rule_type: str
+    framework: str
+    jurisdiction: str
+    severity: str
+    is_active: bool
+    created_at: str
+    updated_at: str
+
+@router.get("/rules", response_model=List[ComplianceRuleResponse])
+async def get_compliance_rules(
+    framework: Optional[str] = Query(None, description="Filter by framework"),
+    jurisdiction: Optional[str] = Query(None, description="Filter by jurisdiction"),
+    rule_type: Optional[str] = Query(None, description="Filter by rule type"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(20, ge=1, le=100, description="Page size"),
+    current_user: UserInDB = Depends(require_permission("compliance.rules.read")),
+    tenant_id: str = Depends(verify_tenant_access)
+):
+    """
+    Get list of compliance rules with filtering and pagination.
+
+    Requires permission: compliance.rules.read
+    """
+    try:
+        async with get_database() as db:
+            # Build dynamic query
+            conditions = ["tenant_id = $1"]
+            params = [uuid.UUID(tenant_id)]
+            param_count = 1
+
+            if framework:
+                param_count += 1
+                conditions.append(f"framework = ${param_count}")
+                params.append(framework)
+
+            if jurisdiction:
+                param_count += 1
+                conditions.append(f"jurisdiction = ${param_count}")
+                params.append(jurisdiction)
+
+            if rule_type:
+                param_count += 1
+                conditions.append(f"rule_type = ${param_count}")
+                params.append(rule_type)
+
+            if is_active is not None:
+                param_count += 1
+                conditions.append(f"is_active = ${param_count}")
+                params.append(is_active)
+
+            where_clause = " AND ".join(conditions)
+            offset = (page - 1) * size
+
+            query = f"""
+                SELECT id, name, description, rule_type, framework, jurisdiction,
+                       severity, is_active, created_at, updated_at
+                FROM compliance_rules
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ${param_count + 1} OFFSET ${param_count + 2}
+            """
+
+            params.extend([size, offset])
+            rules = await db.fetch(query, *params)
+
+            return [
+                ComplianceRuleResponse(
+                    id=str(rule['id']),
+                    name=rule['name'],
+                    description=rule['description'],
+                    rule_type=rule['rule_type'],
+                    framework=rule['framework'],
+                    jurisdiction=rule['jurisdiction'],
+                    severity=rule['severity'],
+                    is_active=rule['is_active'],
+                    created_at=rule['created_at'].isoformat(),
+                    updated_at=rule['updated_at'].isoformat()
+                )
+                for rule in rules
+            ]
+
+    except Exception as e:
+        logger.error(f"Get compliance rules failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get compliance rules"
+        )

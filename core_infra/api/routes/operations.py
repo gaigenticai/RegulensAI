@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 import structlog
 
 from core_infra.api.auth import get_current_user, require_permission, UserInDB
-from core_infra.database import get_database
+from core_infra.database.connection import get_database
 from core_infra.database.migrate import MigrationRunner
 from core_infra.config import get_settings, validate_configuration, get_configuration_summary, ConfigurationError
 from core_infra.monitoring.metrics import metrics_collector, collect_all_metrics, get_metrics_data

@@ -17,7 +17,7 @@ import structlog
 
 from core_infra.config import get_settings
 from core_infra.database.connection import get_database
-from core_infra.exceptions import SecurityException
+from core_infra.exceptions import SystemException
 
 # Initialize logging
 logger = structlog.get_logger(__name__)
@@ -485,7 +485,7 @@ class SecurityPenetrationTester:
             
         except Exception as e:
             logger.error(f"Security scan failed: {e}")
-            raise SecurityException(f"Security scan failed: {e}")
+            raise SystemException(f"Security scan failed: {e}")
     
     async def _test_sql_injection(self, session: aiohttp.ClientSession, 
                                 target_url: str, auth_headers: Optional[Dict[str, str]]) -> List[SecurityVulnerability]:

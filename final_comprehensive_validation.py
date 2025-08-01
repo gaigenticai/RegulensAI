@@ -115,7 +115,7 @@ class ComprehensiveValidator:
             
             critical_columns = {
                 'tenants': ['id', 'name', 'domain', 'subscription_tier', 'is_active'],
-                'users': ['id', 'tenant_id', 'email', 'first_name', 'last_name'],
+                'users': ['id', 'tenant_id', 'email', 'full_name'],
                 'customers': ['id', 'tenant_id', 'full_name', 'kyc_status'],
                 'transactions': ['id', 'tenant_id', 'customer_id', 'amount'],
                 'compliance_tasks': ['id', 'tenant_id', 'status', 'priority'],
@@ -177,29 +177,32 @@ class ComprehensiveValidator:
             # Test 2: Create a user
             user_id = str(uuid.uuid4())
             await self.connection.execute("""
-                INSERT INTO users (id, tenant_id, email, first_name, last_name, is_active)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            """, user_id, tenant_id, 'test@example.com', 'Test', 'User', True)
+                INSERT INTO users (id, tenant_id, email, full_name, is_active)
+                VALUES ($1, $2, $3, $4, $5)
+            """, user_id, tenant_id, 'test@example.com', 'Test User', True)
             
             self.test_data_ids.append(('users', user_id))
             self.log("✓ Created test user")
             
             # Test 3: Create a customer
             customer_id = str(uuid.uuid4())
+            customer_external_id = f"CUST_{customer_id[:8]}"
             await self.connection.execute("""
-                INSERT INTO customers (id, tenant_id, full_name, email, kyc_status, pep_status, is_active)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """, customer_id, tenant_id, 'Test Customer', 'customer@example.com', 'pending', 'not_pep', True)
+                INSERT INTO customers (id, tenant_id, customer_id, customer_type, full_name, email, kyc_status, risk_rating, pep_status, is_active)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            """, customer_id, tenant_id, customer_external_id, 'individual', 'Test Customer', 'customer@example.com', 'pending', 'low', False, True)
             
             self.test_data_ids.append(('customers', customer_id))
             self.log("✓ Created test customer")
             
             # Test 4: Create a transaction
             transaction_id = str(uuid.uuid4())
+            transaction_external_id = f"TXN_{transaction_id[:8]}"
+            from datetime import datetime
             await self.connection.execute("""
-                INSERT INTO transactions (id, tenant_id, customer_id, amount, currency, transaction_type, status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """, transaction_id, tenant_id, customer_id, 1000.00, 'USD', 'transfer', 'completed')
+                INSERT INTO transactions (id, tenant_id, customer_id, transaction_id, amount, currency, transaction_type, transaction_date, aml_status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            """, transaction_id, tenant_id, customer_id, transaction_external_id, 1000.00, 'USD', 'transfer', datetime.utcnow(), 'clear')
             
             self.test_data_ids.append(('transactions', transaction_id))
             self.log("✓ Created test transaction")

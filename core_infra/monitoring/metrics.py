@@ -14,7 +14,7 @@ from prometheus_client import (
 import structlog
 from sqlalchemy import text
 
-from core_infra.database import get_database
+from core_infra.database.connection import get_database
 
 logger = structlog.get_logger(__name__)
 

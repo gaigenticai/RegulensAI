@@ -15,7 +15,7 @@ from datetime import datetime
 from enum import Enum
 
 from core_infra.config import settings
-from core_infra.exceptions import ValidationError
+from core_infra.exceptions import DataValidationException
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ class FormExtractor:
             
         except Exception as e:
             logger.error(f"Failed to decode image: {e}")
-            raise ValidationError("Invalid image data")
+            raise DataValidationException("Invalid image data")
     
     def _detect_form_type(self, image: np.ndarray) -> str:
         """Detect the type of form from image."""

@@ -13,7 +13,7 @@ from enum import Enum
 import uuid
 
 from core_infra.config import settings
-from core_infra.exceptions import SystemException, ValidationError
+from core_infra.exceptions import SystemException, DataValidationException
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ class WorkflowOrchestrator:
             # Get workflow definition
             workflow_def = self.workflow_definitions.get(workflow_name)
             if not workflow_def:
-                raise ValidationError(f"Unknown workflow: {workflow_name}")
+                raise DataValidationException(f"Unknown workflow: {workflow_name}")
             
             # Create execution instance
             execution_id = str(uuid.uuid4())
@@ -350,7 +350,7 @@ class WorkflowOrchestrator:
             
             for field in required_fields:
                 if field not in customer_data:
-                    raise ValidationError(f"Missing required field: {field}")
+                    raise DataValidationException(f"Missing required field: {field}")
             
             return {'valid': True, 'validated_fields': required_fields}
         

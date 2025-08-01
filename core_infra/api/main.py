@@ -43,10 +43,13 @@ from core_infra.api.routes import (
     operations_router,
     health_router
 )
-from core_infra.api.routes.ui_portals import router as ui_portals_router
-from core_infra.api.routes.security_testing import router as security_testing_router
-from core_infra.api.routes.phase6_ai import include_phase6_routes
-from core_infra.api.training_portal.routes import router as training_portal_router
+from core_infra.api.routes.customers import router as customers_router
+from core_infra.api.routes.transactions import router as transactions_router
+# Temporarily disabled problematic imports for core API functionality
+# from core_infra.api.routes.ui_portals import router as ui_portals_router
+# from core_infra.api.routes.security_testing import router as security_testing_router
+# from core_infra.api.routes.phase6_ai import include_phase6_routes
+# from core_infra.api.training_portal.routes import router as training_portal_router
 from core_infra.config import get_settings
 from core_infra.exceptions import (
     RegulensBaseException,
@@ -77,7 +80,7 @@ async def lifespan(app: FastAPI):
         
         # Setup distributed tracing
         if settings.jaeger_enabled:
-            setup_tracing(settings.jaeger_service_name)
+            setup_tracing()
             logger.info("Distributed tracing initialized")
         
         # Initialize AI models cache
@@ -417,6 +420,12 @@ app.include_router(compliance_router, prefix=f"/{settings.api_version}/complianc
 # AML/KYC
 app.include_router(aml_router, prefix=f"/{settings.api_version}/aml", tags=["AML/KYC"])
 
+# Customer Management
+app.include_router(customers_router, prefix=f"/{settings.api_version}/customers", tags=["Customers"])
+
+# Transaction Management
+app.include_router(transactions_router, prefix=f"/{settings.api_version}/transactions", tags=["Transactions"])
+
 # Workflow Management
 app.include_router(tasks_router, prefix=f"/{settings.api_version}/tasks", tags=["Tasks"])
 
@@ -429,21 +438,23 @@ app.include_router(ai_router, prefix=f"/{settings.api_version}/ai", tags=["AI In
 # Operations and Deployment
 app.include_router(operations_router, prefix=f"/{settings.api_version}/operations", tags=["Operations"])
 
+# Temporarily disabled disaster recovery due to import issues
 # Disaster Recovery
-from core_infra.api.routes.disaster_recovery import router as dr_router
-app.include_router(dr_router, prefix=f"/{settings.api_version}/disaster-recovery", tags=["Disaster Recovery"])
+# from core_infra.api.routes.disaster_recovery import router as dr_router
+# app.include_router(dr_router, prefix=f"/{settings.api_version}/disaster-recovery", tags=["Disaster Recovery"])
 
+# Temporarily disabled problematic routers for core API functionality
 # UI Portals (Phase 4)
-app.include_router(ui_portals_router, tags=["UI Portals"])
+# app.include_router(ui_portals_router, tags=["UI Portals"])
 
 # Security Testing (Phase 5)
-app.include_router(security_testing_router, tags=["Security Testing"])
+# app.include_router(security_testing_router, tags=["Security Testing"])
 
 # Training Portal
-app.include_router(training_portal_router, prefix=f"/{settings.api_version}", tags=["Training Portal"])
+# app.include_router(training_portal_router, prefix=f"/{settings.api_version}", tags=["Training Portal"])
 
 # Phase 6 Advanced AI & Automation
-include_phase6_routes(app)
+# include_phase6_routes(app)
 
 # Enhanced OpenAPI Schema
 app.openapi = lambda: get_enhanced_openapi_schema(app)

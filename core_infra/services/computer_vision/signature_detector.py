@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from core_infra.config import settings
-from core_infra.exceptions import ValidationError
+from core_infra.exceptions import DataValidationException
 from core_infra.monitoring.observability import monitor_performance
 
 logger = logging.getLogger(__name__)
@@ -182,7 +182,7 @@ class SignatureDetector:
             
         except Exception as e:
             logger.error(f"Failed to decode image: {e}")
-            raise ValidationError("Invalid image data")
+            raise DataValidationException("Invalid image data")
     
     def _preprocess_for_signatures(self, image: np.ndarray) -> np.ndarray:
         """Preprocess image for signature detection."""

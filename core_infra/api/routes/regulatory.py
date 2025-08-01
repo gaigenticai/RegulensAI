@@ -14,8 +14,7 @@ import structlog
 from core_infra.api.auth import get_current_user, verify_tenant_access
 from core_infra.database.connection import get_database
 from core_infra.services.regulatory_monitor import (
-    regulatory_monitor, regulatory_scheduler, 
-    get_monitor_status, get_scheduler_status
+    RegulatoryMonitor, RegulatoryScheduler
 )
 from core_infra.services.regulatory_monitor.analyzer import RegulatoryAnalyzer
 from core_infra.ai.embeddings import get_document_embeddings_manager
@@ -372,10 +371,10 @@ async def get_regulatory_document(
 @router.post("/documents/{document_id}/analyze", response_model=Dict[str, Any])
 async def analyze_document(
     document_id: str,
-    force_reanalysis: bool = Query(False, description="Force re-analysis"),
     background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user),
-    tenant_check = Depends(verify_tenant_access)
+    tenant_check = Depends(verify_tenant_access),
+    force_reanalysis: bool = Query(False, description="Force re-analysis")
 ):
     """Trigger AI analysis of a regulatory document."""
     try:
