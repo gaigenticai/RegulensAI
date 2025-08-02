@@ -1,0 +1,76 @@
+[package]
+name = "regulateai-compliance-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Regulatory Compliance service for RegulateAI"
+
+[dependencies]
+# Async runtime and web framework
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database and ORM
+sqlx = { workspace = true }
+sea-orm = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+# Document processing
+pdf = "0.8"
+docx = "0.2"
+
+# Text processing and NLP
+regex = { workspace = true }
+stemmer = { workspace = true }
+
+# Async traits
+async-trait = { workspace = true }
+
+# Workflow engine
+petgraph = "0.6"
+
+# Notification and email
+lettre = "0.11"
+
+# Template engine
+tera = "1.19"
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../../shared/common" }
+regulateai-errors = { path = "../../shared/errors" }
+regulateai-config = { path = "../../shared/config" }
+regulateai-database = { path = "../../shared/database" }
+regulateai-auth = { path = "../../shared/auth" }
+regulateai-logging = { path = "../../shared/logging" }

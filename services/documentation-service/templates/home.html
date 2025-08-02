@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}RegulateAI Documentation - Home{% endblock %}
+
+{% block description %}RegulateAI Enterprise Compliance Platform - Interactive Web-Based Documentation{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="jumbotron bg-primary text-white rounded mb-4">
+    <div class="container-fluid py-5">
+        <h1 class="display-4">
+            <i class="fas fa-shield-alt me-3"></i>
+            RegulateAI Documentation
+        </h1>
+        <p class="lead">
+            Interactive web-based user guides for the enterprise compliance and risk management platform.
+            Comprehensive documentation with search functionality, API references, test results, and field-by-field explanations.
+        </p>
+        <hr class="my-4">
+        <p class="mb-4">
+            Built according to development standards with complete feature documentation, 
+            database schema details, environment configuration, and unit test coverage.
+        </p>
+        <div class="row">
+            <div class="col-md-3">
+                <a class="btn btn-light btn-lg mb-2 w-100" href="/features" role="button">
+                    <i class="fas fa-cogs me-2"></i>Explore Features
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a class="btn btn-outline-light btn-lg mb-2 w-100" href="/api-reference" role="button">
+                    <i class="fas fa-code me-2"></i>API Reference
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a class="btn btn-outline-light btn-lg mb-2 w-100" href="/test-results" role="button">
+                    <i class="fas fa-check-circle me-2"></i>Test Results
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a class="btn btn-outline-light btn-lg mb-2 w-100" href="/search" role="button">
+                    <i class="fas fa-search me-2"></i>Search Docs
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-cogs fa-2x text-primary mb-2"></i>
+                <h5 class="card-title">{{ features|length }}</h5>
+                <p class="card-text">Features Documented</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-code fa-2x text-success mb-2"></i>
+                <h5 class="card-title">25+</h5>
+                <p class="card-text">API Endpoints</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-database fa-2x text-info mb-2"></i>
+                <h5 class="card-title">25+</h5>
+                <p class="card-text">Database Tables</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <i class="fas fa-check-circle fa-2x text-warning mb-2"></i>
+                <h5 class="card-title">136+</h5>
+                <p class="card-text">Unit Tests</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Sections -->
+<div class="row">
+    <!-- Features Overview -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-cogs me-2"></i>
+                    Available Features
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Comprehensive documentation for all implemented RegulateAI features with 
+                    interactive guides, database schemas, and API references.
+                </p>
+                
+                {% for feature in features %}
+                <div class="feature-item mb-3 p-3 border rounded">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">
+                                <a href="/features/{{ feature.name | slugify }}" class="text-decoration-none">
+                                    {{ feature.name }}
+                                </a>
+                            </h6>
+                            <p class="mb-1 text-muted small">{{ feature.description }}</p>
+                            <small class="text-muted">
+                                <i class="fas fa-tag me-1"></i>{{ feature.category }}
+                                <span class="ms-2">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Updated {{ feature.last_updated | date(format="%Y-%m-%d") }}
+                                </span>
+                            </small>
+                        </div>
+                        <span class="badge bg-success">{{ feature.status }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <div class="text-center mt-3">
+                    <a href="/features" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-1"></i>View All Features
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Updates -->
+    <div class="col-lg-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    Recent Updates
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Latest documentation updates and improvements to the RegulateAI platform guides.
+                </p>
+                
+                {% for update in recent_updates %}
+                <div class="update-item mb-3 p-3 border-start border-success border-3">
+                    <h6 class="mb-1">{{ update.title }}</h6>
+                    <p class="mb-1 text-muted small">{{ update.description }}</p>
+                    <small class="text-muted">
+                        <i class="fas fa-user me-1"></i>{{ update.author }}
+                        <span class="ms-2">
+                            <i class="fas fa-calendar me-1"></i>
+                            {{ update.updated_at | date(format="%Y-%m-%d %H:%M") }}
+                        </span>
+                    </small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Links Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-external-link-alt me-2"></i>
+                    Quick Access Links
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for link in quick_links %}
+                    <div class="col-md-6 col-lg-3 mb-3">
+                        <div class="card border-info h-100">
+                            <div class="card-body text-center">
+                                <h6 class="card-title">
+                                    <a href="{{ link.url }}" class="text-decoration-none">
+                                        {{ link.title }}
+                                    </a>
+                                </h6>
+                                <p class="card-text small text-muted">{{ link.description }}</p>
+                                <a href="{{ link.url }}" class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-arrow-right me-1"></i>Access
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-search me-2"></i>
+                    Interactive Search
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Use our powerful search functionality to quickly find information across all documentation,
+                    API references, test results, and configuration details.
+                </p>
+                
+                <form id="homeSearchForm" class="mb-3">
+                    <div class="input-group input-group-lg">
+                        <input type="text" class="form-control" placeholder="Search documentation, APIs, tests, configuration..." 
+                               id="homeSearchInput" name="q" autocomplete="off">
+                        <button class="btn btn-warning" type="submit">
+                            <i class="fas fa-search me-1"></i>Search
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="row">
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <strong>Popular searches:</strong><br>
+                            <a href="/search?q=authentication" class="text-decoration-none">Authentication</a><br>
+                            <a href="/search?q=AML" class="text-decoration-none">AML Service</a><br>
+                            <a href="/search?q=API" class="text-decoration-none">API Reference</a>
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <strong>Categories:</strong><br>
+                            <a href="/search?category=Security" class="text-decoration-none">Security</a><br>
+                            <a href="/search?category=Compliance" class="text-decoration-none">Compliance</a><br>
+                            <a href="/search?category=API" class="text-decoration-none">API Reference</a>
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <strong>Services:</strong><br>
+                            <a href="/search?service=Authentication" class="text-decoration-none">Authentication</a><br>
+                            <a href="/search?service=AML" class="text-decoration-none">AML Service</a><br>
+                            <a href="/search?service=Core" class="text-decoration-none">Core Platform</a>
+                        </small>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">
+                            <strong>Advanced:</strong><br>
+                            <a href="/database-schema" class="text-decoration-none">Database Schema</a><br>
+                            <a href="/environment-config" class="text-decoration-none">Environment Config</a><br>
+                            <a href="/test-results" class="text-decoration-none">Test Coverage</a>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Compliance Notice -->
+<div class="alert alert-info" role="alert">
+    <h6 class="alert-heading">
+        <i class="fas fa-info-circle me-2"></i>
+        Documentation Standards Compliance
+    </h6>
+    <p class="mb-0">
+        This documentation system is built according to Rule #7 of the development standards, 
+        providing web-based user guides with interactive search functionality, comprehensive 
+        feature descriptions, database table documentation, environment variable explanations, 
+        API endpoint details, field-by-field data structure documentation, and complete unit test results.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Home page search functionality
+document.getElementById('homeSearchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const query = document.getElementById('homeSearchInput').value.trim();
+    if (query) {
+        window.location.href = `/search?q=${encodeURIComponent(query)}`;
+    }
+});
+
+// Auto-focus search input
+document.getElementById('homeSearchInput').focus();
+</script>
+{% endblock %}

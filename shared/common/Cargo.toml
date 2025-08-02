@@ -1,0 +1,36 @@
+[package]
+name = "regulateai-common"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Common types, utilities, and traits for RegulateAI services"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Utilities
+regex = { workspace = true }
+url = { workspace = true }
+rust_decimal = { version = "1.33", features = ["serde"] }
+lazy_static = "1.4"

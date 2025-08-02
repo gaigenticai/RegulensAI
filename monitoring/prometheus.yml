@@ -1,0 +1,72 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # RegulateAI Services
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'aml-service'
+    static_configs:
+      - targets: ['aml-service:9091']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'compliance-service'
+    static_configs:
+      - targets: ['compliance-service:9092']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'risk-management-service'
+    static_configs:
+      - targets: ['risk-management-service:9093']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'fraud-detection-service'
+    static_configs:
+      - targets: ['fraud-detection-service:9094']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'cybersecurity-service'
+    static_configs:
+      - targets: ['cybersecurity-service:9095']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'ai-orchestration-service'
+    static_configs:
+      - targets: ['ai-orchestration-service:9096']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Infrastructure Services
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    scrape_interval: 30s

@@ -1,0 +1,35 @@
+[package]
+name = "regulateai-config"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Configuration management for RegulateAI services"
+
+[dependencies]
+# Configuration
+config = { workspace = true }
+dotenvy = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+toml = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+
+
+# URL parsing
+url = { workspace = true }
+
+# RegulateAI shared libraries
+regulateai-errors = { path = "../errors" }

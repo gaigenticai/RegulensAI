@@ -1,0 +1,103 @@
+[package]
+name = "regulateai-cybersecurity-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Cybersecurity & InfoSec Compliance service for RegulateAI platform"
+
+[dependencies]
+# Async runtime and web framework
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database and ORM
+sqlx = { workspace = true }
+sea-orm = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+# Cryptography
+ring = "0.17"
+rsa = "0.9"
+aes-gcm = "0.10"
+sha2 = "0.10"
+
+# Network security
+trust-dns-resolver = "0.23"
+ipnet = "2.9"
+
+# Vulnerability scanning
+semver = "1.0"
+cve = "0.3"
+
+# SIEM integration
+syslog = "6.1"
+
+# Email for notifications
+lettre = "0.11"
+
+# Template engine
+tera = "1.19"
+
+# Decimal handling
+rust_decimal = { workspace = true }
+
+# Async traits
+async-trait = { workspace = true }
+
+# Rate limiting
+governor = "0.6"
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# File system operations
+walkdir = "2.4"
+
+# Regex for pattern matching
+regex = { workspace = true }
+
+# Base64 encoding
+base64 = "0.21"
+
+# JSON Web Tokens
+jsonwebtoken = "9.2"
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../../shared/common" }
+regulateai-errors = { path = "../../shared/errors" }
+regulateai-config = { path = "../../shared/config" }
+regulateai-database = { path = "../../shared/database" }
+regulateai-auth = { path = "../../shared/auth" }
+regulateai-logging = { path = "../../shared/logging" }

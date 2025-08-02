@@ -1,0 +1,1051 @@
+openapi: 3.0.3
+info:
+  title: RegulateAI Compliance Service API
+  description: |
+    Regulatory Compliance Management Service API for comprehensive compliance operations.
+    
+    This service provides:
+    - Policy management with version control and approval workflows
+    - Automated regulatory obligation mapping and tracking
+    - Control design, testing, and effectiveness monitoring
+    - Regulatory change management with impact analysis
+    - Audit and evidence management with secure storage
+    - Third-party Risk Management (TPRM) workflows
+    - Internal investigations case management
+    - Automated attestation for SOC2, ISO 27001, PCI DSS
+    - Conflict of interest detection and resolution
+  version: 1.0.0
+  contact:
+    name: RegulateAI Support
+    email: support@regulateai.com
+    url: https://regulateai.com/support
+  license:
+    name: Proprietary
+    url: https://regulateai.com/license
+
+servers:
+  - url: http://localhost:8081
+    description: Development server
+  - url: https://compliance-api.regulateai.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/v1/compliance/policies:
+    get:
+      summary: List policies
+      description: Retrieve a list of compliance policies with filtering and pagination
+      operationId: listPolicies
+      tags:
+        - Policy Management
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by policy category
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, UNDER_REVIEW, APPROVED, ACTIVE, ARCHIVED]
+          description: Filter by policy status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Policies retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      summary: Create policy
+      description: Create a new compliance policy
+      operationId: createPolicy
+      tags:
+        - Policy Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePolicyRequest'
+            examples:
+              data_protection_policy:
+                summary: Data Protection Policy
+                value:
+                  title: "Data Protection and Privacy Policy"
+                  description: "Comprehensive policy for data protection and privacy compliance"
+                  category: "DATA_PROTECTION"
+                  policy_type: "OPERATIONAL"
+                  content: "This policy establishes requirements for data protection..."
+                  effective_date: "2025-01-01"
+                  review_frequency_months: 12
+                  owner_id: "550e8400-e29b-41d4-a716-446655440000"
+                  approvers: ["550e8400-e29b-41d4-a716-446655440001"]
+      responses:
+        '201':
+          description: Policy created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/compliance/policies/{policyId}:
+    get:
+      summary: Get policy
+      description: Retrieve a specific policy by ID
+      operationId: getPolicy
+      tags:
+        - Policy Management
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Policy retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update policy
+      description: Update an existing policy
+      operationId: updatePolicy
+      tags:
+        - Policy Management
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePolicyRequest'
+      responses:
+        '200':
+          description: Policy updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponse'
+
+    delete:
+      summary: Delete policy
+      description: Delete a policy (soft delete - archives the policy)
+      operationId: deletePolicy
+      tags:
+        - Policy Management
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Policy deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/compliance/policies/{policyId}/approve:
+    post:
+      summary: Approve policy
+      description: Approve a policy for activation
+      operationId: approvePolicy
+      tags:
+        - Policy Management
+      parameters:
+        - name: policyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequest'
+      responses:
+        '200':
+          description: Policy approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyResponse'
+
+  /api/v1/compliance/controls:
+    get:
+      summary: List controls
+      description: Retrieve a list of compliance controls
+      operationId: listControls
+      tags:
+        - Control Management
+      parameters:
+        - name: policy_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by policy ID
+        - name: control_type
+          in: query
+          schema:
+            type: string
+            enum: [PREVENTIVE, DETECTIVE, CORRECTIVE]
+          description: Filter by control type
+        - name: effectiveness
+          in: query
+          schema:
+            type: string
+            enum: [EFFECTIVE, PARTIALLY_EFFECTIVE, INEFFECTIVE, NOT_TESTED]
+          description: Filter by control effectiveness
+      responses:
+        '200':
+          description: Controls retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlListResponse'
+
+    post:
+      summary: Create control
+      description: Create a new compliance control
+      operationId: createControl
+      tags:
+        - Control Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateControlRequest'
+      responses:
+        '201':
+          description: Control created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlResponse'
+
+  /api/v1/compliance/controls/{controlId}/test:
+    post:
+      summary: Test control
+      description: Execute a control test
+      operationId: testControl
+      tags:
+        - Control Testing
+      parameters:
+        - name: controlId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlTestRequest'
+      responses:
+        '201':
+          description: Control test initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlTestResponse'
+
+  /api/v1/compliance/obligations:
+    get:
+      summary: List regulatory obligations
+      description: Retrieve regulatory obligations with mapping to controls
+      operationId: listObligations
+      tags:
+        - Regulatory Obligations
+      parameters:
+        - name: jurisdiction
+          in: query
+          schema:
+            type: string
+          description: Filter by jurisdiction
+        - name: regulation
+          in: query
+          schema:
+            type: string
+          description: Filter by regulation name
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [COMPLIANT, NON_COMPLIANT, PARTIALLY_COMPLIANT, NOT_ASSESSED]
+      responses:
+        '200':
+          description: Obligations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObligationListResponse'
+
+    post:
+      summary: Create obligation
+      description: Create a new regulatory obligation
+      operationId: createObligation
+      tags:
+        - Regulatory Obligations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObligationRequest'
+      responses:
+        '201':
+          description: Obligation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObligationResponse'
+
+  /api/v1/compliance/assessments:
+    get:
+      summary: List compliance assessments
+      description: Retrieve compliance assessments and their results
+      operationId: listAssessments
+      tags:
+        - Compliance Assessment
+      parameters:
+        - name: assessment_type
+          in: query
+          schema:
+            type: string
+            enum: [SOC2, ISO27001, PCI_DSS, GDPR, HIPAA]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PLANNED, IN_PROGRESS, COMPLETED, FAILED]
+      responses:
+        '200':
+          description: Assessments retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentListResponse'
+
+    post:
+      summary: Create assessment
+      description: Initiate a new compliance assessment
+      operationId: createAssessment
+      tags:
+        - Compliance Assessment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssessmentRequest'
+      responses:
+        '201':
+          description: Assessment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentResponse'
+
+  /api/v1/compliance/audits:
+    get:
+      summary: List audits
+      description: Retrieve audit records and evidence
+      operationId: listAudits
+      tags:
+        - Audit Management
+      parameters:
+        - name: audit_type
+          in: query
+          schema:
+            type: string
+            enum: [INTERNAL, EXTERNAL, REGULATORY]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PLANNED, IN_PROGRESS, COMPLETED, REMEDIATION_REQUIRED]
+      responses:
+        '200':
+          description: Audits retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditListResponse'
+
+    post:
+      summary: Create audit
+      description: Create a new audit record
+      operationId: createAudit
+      tags:
+        - Audit Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAuditRequest'
+      responses:
+        '201':
+          description: Audit created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CreatePolicyRequest:
+      type: object
+      required:
+        - title
+        - description
+        - category
+        - policy_type
+        - content
+        - owner_id
+      properties:
+        title:
+          type: string
+          description: Policy title
+        description:
+          type: string
+          description: Policy description
+        category:
+          type: string
+          enum: [DATA_PROTECTION, SECURITY, FINANCIAL, OPERATIONAL, HR, LEGAL]
+        policy_type:
+          type: string
+          enum: [STRATEGIC, OPERATIONAL, TECHNICAL]
+        content:
+          type: string
+          description: Policy content in markdown format
+        effective_date:
+          type: string
+          format: date
+        review_frequency_months:
+          type: integer
+          minimum: 1
+          maximum: 60
+        owner_id:
+          type: string
+          format: uuid
+        approvers:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdatePolicyRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        content:
+          type: string
+        effective_date:
+          type: string
+          format: date
+        review_frequency_months:
+          type: integer
+        owner_id:
+          type: string
+          format: uuid
+
+    PolicyResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        policy_type:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, UNDER_REVIEW, APPROVED, ACTIVE, ARCHIVED]
+        version:
+          type: integer
+        effective_date:
+          type: string
+          format: date
+        review_frequency_months:
+          type: integer
+        next_review_date:
+          type: string
+          format: date
+        owner_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        approval_status:
+          $ref: '#/components/schemas/ApprovalStatus'
+
+    PolicyListResponse:
+      type: object
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyResponse'
+        total_count:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    ApprovalRequest:
+      type: object
+      required:
+        - decision
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE, REJECT, REQUEST_CHANGES]
+        comments:
+          type: string
+          description: Approval comments
+
+    ApprovalStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CHANGES_REQUESTED]
+        approved_by:
+          type: string
+          format: uuid
+        approved_at:
+          type: string
+          format: date-time
+        comments:
+          type: string
+
+    CreateControlRequest:
+      type: object
+      required:
+        - title
+        - description
+        - control_type
+        - policy_id
+        - owner_id
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        control_type:
+          type: string
+          enum: [PREVENTIVE, DETECTIVE, CORRECTIVE]
+        policy_id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        frequency:
+          type: string
+          enum: [CONTINUOUS, DAILY, WEEKLY, MONTHLY, QUARTERLY, ANNUALLY]
+        automated:
+          type: boolean
+          default: false
+
+    ControlResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        control_type:
+          type: string
+        policy_id:
+          type: string
+          format: uuid
+        owner_id:
+          type: string
+          format: uuid
+        frequency:
+          type: string
+        automated:
+          type: boolean
+        effectiveness:
+          type: string
+          enum: [EFFECTIVE, PARTIALLY_EFFECTIVE, INEFFECTIVE, NOT_TESTED]
+        last_tested:
+          type: string
+          format: date-time
+        next_test_due:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    ControlListResponse:
+      type: object
+      properties:
+        controls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ControlResponse'
+        total_count:
+          type: integer
+
+    ControlTestRequest:
+      type: object
+      required:
+        - test_type
+        - tester_id
+      properties:
+        test_type:
+          type: string
+          enum: [DESIGN, OPERATING_EFFECTIVENESS, WALKTHROUGH]
+        tester_id:
+          type: string
+          format: uuid
+        test_procedures:
+          type: string
+        expected_evidence:
+          type: array
+          items:
+            type: string
+
+    ControlTestResponse:
+      type: object
+      properties:
+        test_id:
+          type: string
+          format: uuid
+        control_id:
+          type: string
+          format: uuid
+        test_type:
+          type: string
+        status:
+          type: string
+          enum: [PLANNED, IN_PROGRESS, COMPLETED, FAILED]
+        result:
+          type: string
+          enum: [EFFECTIVE, PARTIALLY_EFFECTIVE, INEFFECTIVE]
+        findings:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        tested_at:
+          type: string
+          format: date-time
+        tester_id:
+          type: string
+          format: uuid
+
+    CreateObligationRequest:
+      type: object
+      required:
+        - title
+        - regulation
+        - jurisdiction
+        - requirement_text
+        - owner_id
+      properties:
+        title:
+          type: string
+        regulation:
+          type: string
+        jurisdiction:
+          type: string
+        requirement_text:
+          type: string
+        citation:
+          type: string
+        owner_id:
+          type: string
+          format: uuid
+        due_date:
+          type: string
+          format: date
+        control_mappings:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    ObligationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        regulation:
+          type: string
+        jurisdiction:
+          type: string
+        requirement_text:
+          type: string
+        citation:
+          type: string
+        status:
+          type: string
+          enum: [COMPLIANT, NON_COMPLIANT, PARTIALLY_COMPLIANT, NOT_ASSESSED]
+        owner_id:
+          type: string
+          format: uuid
+        due_date:
+          type: string
+          format: date
+        last_assessed:
+          type: string
+          format: date-time
+        control_mappings:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    ObligationListResponse:
+      type: object
+      properties:
+        obligations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObligationResponse'
+        total_count:
+          type: integer
+
+    CreateAssessmentRequest:
+      type: object
+      required:
+        - assessment_type
+        - scope
+        - assessor_id
+      properties:
+        assessment_type:
+          type: string
+          enum: [SOC2, ISO27001, PCI_DSS, GDPR, HIPAA]
+        scope:
+          type: string
+        assessor_id:
+          type: string
+          format: uuid
+        planned_start_date:
+          type: string
+          format: date
+        planned_end_date:
+          type: string
+          format: date
+
+    AssessmentResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assessment_type:
+          type: string
+        scope:
+          type: string
+        status:
+          type: string
+          enum: [PLANNED, IN_PROGRESS, COMPLETED, FAILED]
+        assessor_id:
+          type: string
+          format: uuid
+        planned_start_date:
+          type: string
+          format: date
+        planned_end_date:
+          type: string
+          format: date
+        actual_start_date:
+          type: string
+          format: date
+        actual_end_date:
+          type: string
+          format: date
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentFinding'
+        overall_rating:
+          type: string
+          enum: [COMPLIANT, NON_COMPLIANT, PARTIALLY_COMPLIANT]
+
+    AssessmentFinding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        title:
+          type: string
+        description:
+          type: string
+        recommendation:
+          type: string
+        control_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, ACCEPTED_RISK]
+
+    AssessmentListResponse:
+      type: object
+      properties:
+        assessments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentResponse'
+        total_count:
+          type: integer
+
+    CreateAuditRequest:
+      type: object
+      required:
+        - title
+        - audit_type
+        - scope
+        - auditor_id
+      properties:
+        title:
+          type: string
+        audit_type:
+          type: string
+          enum: [INTERNAL, EXTERNAL, REGULATORY]
+        scope:
+          type: string
+        auditor_id:
+          type: string
+          format: uuid
+        planned_start_date:
+          type: string
+          format: date
+        planned_end_date:
+          type: string
+          format: date
+
+    AuditResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        audit_type:
+          type: string
+        scope:
+          type: string
+        status:
+          type: string
+          enum: [PLANNED, IN_PROGRESS, COMPLETED, REMEDIATION_REQUIRED]
+        auditor_id:
+          type: string
+          format: uuid
+        planned_start_date:
+          type: string
+          format: date
+        planned_end_date:
+          type: string
+          format: date
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditFinding'
+        evidence_collected:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvidence'
+
+    AuditFinding:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        title:
+          type: string
+        description:
+          type: string
+        recommendation:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED]
+
+    AuditEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        evidence_type:
+          type: string
+          enum: [DOCUMENT, SCREENSHOT, INTERVIEW, OBSERVATION]
+        file_path:
+          type: string
+        collected_at:
+          type: string
+          format: date-time
+        collected_by:
+          type: string
+          format: uuid
+
+    AuditListResponse:
+      type: object
+      properties:
+        audits:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditResponse'
+        total_count:
+          type: integer
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Policy Management
+    description: Policy creation, approval, and lifecycle management
+  - name: Control Management
+    description: Control design and implementation management
+  - name: Control Testing
+    description: Control testing and effectiveness assessment
+  - name: Regulatory Obligations
+    description: Regulatory requirement mapping and tracking
+  - name: Compliance Assessment
+    description: Compliance assessments and certifications
+  - name: Audit Management
+    description: Audit planning, execution, and evidence management

@@ -1,0 +1,818 @@
+openapi: 3.0.3
+info:
+  title: RegulateAI AML Service API
+  description: |
+    Anti-Money Laundering (AML) Service API for comprehensive financial crime prevention.
+    
+    This service provides:
+    - Know Your Customer (KYC) verification and due diligence
+    - Real-time transaction monitoring and risk assessment
+    - Sanctions screening against global watchlists
+    - Suspicious Activity Report (SAR) generation and filing
+    - Customer risk scoring and behavioral analysis
+    - Regulatory compliance reporting and audit trails
+  version: 1.0.0
+  contact:
+    name: RegulateAI Support
+    email: support@regulateai.com
+    url: https://regulateai.com/support
+  license:
+    name: Proprietary
+    url: https://regulateai.com/license
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.regulateai.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/v1/aml/customers/{customerId}/kyc:
+    post:
+      summary: Initiate KYC verification
+      description: Start Know Your Customer verification process for a customer
+      operationId: initiateKYC
+      tags:
+        - KYC Verification
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique customer identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KYCVerificationRequest'
+            examples:
+              individual:
+                summary: Individual customer KYC
+                value:
+                  verification_type: "ENHANCED"
+                  documents:
+                    - document_type: "PASSPORT"
+                      document_number: "A12345678"
+                      issuing_country: "US"
+                      expiry_date: "2030-12-31"
+                  risk_level: "MEDIUM"
+                  purpose: "ACCOUNT_OPENING"
+      responses:
+        '201':
+          description: KYC verification initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KYCVerificationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      summary: Get KYC verification status
+      description: Retrieve current KYC verification status and results
+      operationId: getKYCStatus
+      tags:
+        - KYC Verification
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: KYC verification status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KYCVerificationStatus'
+
+  /api/v1/aml/transactions/monitor:
+    post:
+      summary: Monitor transaction for AML compliance
+      description: Analyze a transaction for money laundering risks and suspicious patterns
+      operationId: monitorTransaction
+      tags:
+        - Transaction Monitoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionMonitoringRequest'
+            examples:
+              wire_transfer:
+                summary: International wire transfer
+                value:
+                  transaction_id: "TXN_123456789"
+                  customer_id: "550e8400-e29b-41d4-a716-446655440000"
+                  amount: 50000.00
+                  currency: "USD"
+                  transaction_type: "WIRE_TRANSFER"
+                  originator:
+                    name: "John Doe"
+                    account: "1234567890"
+                    country: "US"
+                  beneficiary:
+                    name: "Jane Smith"
+                    account: "0987654321"
+                    country: "GB"
+                  purpose: "Business payment"
+      responses:
+        '200':
+          description: Transaction monitoring completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionMonitoringResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/aml/sanctions/screen:
+    post:
+      summary: Screen against sanctions lists
+      description: Screen individuals or entities against global sanctions and watchlists
+      operationId: screenSanctions
+      tags:
+        - Sanctions Screening
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SanctionsScreeningRequest'
+            examples:
+              individual_screening:
+                summary: Individual sanctions screening
+                value:
+                  entity_type: "INDIVIDUAL"
+                  name: "John Doe"
+                  date_of_birth: "1980-01-15"
+                  nationality: "US"
+                  screening_lists:
+                    - "OFAC_SDN"
+                    - "UN_CONSOLIDATED"
+                    - "EU_CONSOLIDATED"
+                  fuzzy_matching: true
+                  match_threshold: 0.85
+      responses:
+        '200':
+          description: Sanctions screening completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SanctionsScreeningResponse'
+
+  /api/v1/aml/reports/sar:
+    post:
+      summary: Generate Suspicious Activity Report
+      description: Create a Suspicious Activity Report (SAR) for regulatory filing
+      operationId: generateSAR
+      tags:
+        - Regulatory Reporting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SARGenerationRequest'
+      responses:
+        '201':
+          description: SAR generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SARGenerationResponse'
+
+  /api/v1/aml/customers/{customerId}/risk-assessment:
+    post:
+      summary: Assess customer risk
+      description: Perform comprehensive risk assessment for a customer
+      operationId: assessCustomerRisk
+      tags:
+        - Risk Assessment
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskAssessmentRequest'
+      responses:
+        '200':
+          description: Risk assessment completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskAssessmentResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    KYCVerificationRequest:
+      type: object
+      required:
+        - verification_type
+        - documents
+      properties:
+        verification_type:
+          type: string
+          enum: [BASIC, ENHANCED, SIMPLIFIED]
+          description: Type of KYC verification to perform
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityDocument'
+          description: Identity documents for verification
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+          description: Expected customer risk level
+        purpose:
+          type: string
+          enum: [ACCOUNT_OPENING, TRANSACTION, PERIODIC_REVIEW]
+          description: Purpose of KYC verification
+
+    IdentityDocument:
+      type: object
+      required:
+        - document_type
+        - document_number
+        - issuing_country
+      properties:
+        document_type:
+          type: string
+          enum: [PASSPORT, DRIVERS_LICENSE, NATIONAL_ID, UTILITY_BILL]
+        document_number:
+          type: string
+          description: Document identification number
+        issuing_country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+        expiry_date:
+          type: string
+          format: date
+          description: Document expiry date
+
+    KYCVerificationResponse:
+      type: object
+      properties:
+        verification_id:
+          type: string
+          format: uuid
+          description: Unique verification identifier
+        status:
+          type: string
+          enum: [INITIATED, IN_PROGRESS, COMPLETED, FAILED]
+        estimated_completion:
+          type: string
+          format: date-time
+          description: Estimated completion time
+        required_actions:
+          type: array
+          items:
+            type: string
+          description: Actions required from customer
+
+    KYCVerificationStatus:
+      type: object
+      properties:
+        verification_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [INITIATED, IN_PROGRESS, COMPLETED, FAILED, EXPIRED]
+        completion_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        verification_result:
+          $ref: '#/components/schemas/VerificationResult'
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    VerificationResult:
+      type: object
+      properties:
+        overall_status:
+          type: string
+          enum: [VERIFIED, PARTIALLY_VERIFIED, NOT_VERIFIED, REQUIRES_MANUAL_REVIEW]
+        identity_verification:
+          $ref: '#/components/schemas/IdentityVerificationResult'
+        document_verification:
+          $ref: '#/components/schemas/DocumentVerificationResult'
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+
+    IdentityVerificationResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [VERIFIED, NOT_VERIFIED, PARTIAL]
+        confidence_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        verification_methods:
+          type: array
+          items:
+            type: string
+
+    DocumentVerificationResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [VERIFIED, NOT_VERIFIED, SUSPICIOUS]
+        authenticity_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        fraud_indicators:
+          type: array
+          items:
+            type: string
+
+    TransactionMonitoringRequest:
+      type: object
+      required:
+        - transaction_id
+        - customer_id
+        - amount
+        - currency
+        - transaction_type
+      properties:
+        transaction_id:
+          type: string
+          description: Unique transaction identifier
+        customer_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          minimum: 0
+          description: Transaction amount
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        transaction_type:
+          type: string
+          enum: [WIRE_TRANSFER, ACH, CASH_DEPOSIT, CASH_WITHDRAWAL, CHECK, CARD_PAYMENT]
+        originator:
+          $ref: '#/components/schemas/TransactionParty'
+        beneficiary:
+          $ref: '#/components/schemas/TransactionParty'
+        purpose:
+          type: string
+          description: Transaction purpose or description
+
+    TransactionParty:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Party name
+        account:
+          type: string
+          description: Account number
+        country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+        bank_code:
+          type: string
+          description: Bank identifier code
+
+    TransactionMonitoringResponse:
+      type: object
+      properties:
+        monitoring_id:
+          type: string
+          format: uuid
+        transaction_id:
+          type: string
+        risk_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+        alerts_generated:
+          type: array
+          items:
+            $ref: '#/components/schemas/AMLAlert'
+        recommendations:
+          type: array
+          items:
+            type: string
+        processing_time_ms:
+          type: integer
+          description: Processing time in milliseconds
+
+    AMLAlert:
+      type: object
+      properties:
+        alert_id:
+          type: string
+          format: uuid
+        alert_type:
+          type: string
+          enum: [STRUCTURING, VELOCITY, SANCTIONS_MATCH, UNUSUAL_PATTERN, HIGH_RISK_JURISDICTION]
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        description:
+          type: string
+        triggered_rules:
+          type: array
+          items:
+            type: string
+        requires_investigation:
+          type: boolean
+
+    SanctionsScreeningRequest:
+      type: object
+      required:
+        - entity_type
+        - name
+      properties:
+        entity_type:
+          type: string
+          enum: [INDIVIDUAL, ENTITY, VESSEL, AIRCRAFT]
+        name:
+          type: string
+          description: Name to screen
+        date_of_birth:
+          type: string
+          format: date
+          description: Date of birth (for individuals)
+        nationality:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: Nationality or country of incorporation
+        screening_lists:
+          type: array
+          items:
+            type: string
+            enum: [OFAC_SDN, UN_CONSOLIDATED, EU_CONSOLIDATED, HMT_CONSOLIDATED]
+          description: Sanctions lists to screen against
+        fuzzy_matching:
+          type: boolean
+          default: true
+          description: Enable fuzzy name matching
+        match_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.8
+          description: Minimum match score threshold
+
+    SanctionsScreeningResponse:
+      type: object
+      properties:
+        screening_id:
+          type: string
+          format: uuid
+        overall_result:
+          type: string
+          enum: [CLEAR, POTENTIAL_MATCH, CONFIRMED_MATCH]
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/SanctionsMatch'
+        screening_date:
+          type: string
+          format: date-time
+        lists_screened:
+          type: array
+          items:
+            type: string
+
+    SanctionsMatch:
+      type: object
+      properties:
+        match_id:
+          type: string
+        list_name:
+          type: string
+        matched_name:
+          type: string
+        match_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        match_type:
+          type: string
+          enum: [EXACT, FUZZY, PHONETIC]
+        sanctioned_entity:
+          $ref: '#/components/schemas/SanctionedEntity'
+
+    SanctionedEntity:
+      type: object
+      properties:
+        entity_id:
+          type: string
+        primary_name:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        entity_type:
+          type: string
+        date_of_birth:
+          type: string
+          format: date
+        nationality:
+          type: string
+        sanctions_program:
+          type: string
+        listing_date:
+          type: string
+          format: date
+
+    SARGenerationRequest:
+      type: object
+      required:
+        - customer_id
+        - suspicious_activity
+        - investigation_summary
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        suspicious_activity:
+          $ref: '#/components/schemas/SuspiciousActivity'
+        investigation_summary:
+          type: string
+          description: Summary of investigation conducted
+        supporting_documents:
+          type: array
+          items:
+            type: string
+          description: References to supporting documentation
+        law_enforcement_contacted:
+          type: boolean
+          default: false
+
+    SuspiciousActivity:
+      type: object
+      required:
+        - activity_type
+        - description
+        - date_range
+        - total_amount
+      properties:
+        activity_type:
+          type: string
+          enum: [STRUCTURING, MONEY_LAUNDERING, TERRORIST_FINANCING, FRAUD, OTHER]
+        description:
+          type: string
+          description: Detailed description of suspicious activity
+        date_range:
+          $ref: '#/components/schemas/DateRange'
+        total_amount:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        transactions_involved:
+          type: array
+          items:
+            type: string
+          description: Transaction IDs involved in suspicious activity
+
+    DateRange:
+      type: object
+      required:
+        - start_date
+        - end_date
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+
+    SARGenerationResponse:
+      type: object
+      properties:
+        sar_id:
+          type: string
+          format: uuid
+        sar_number:
+          type: string
+          description: Sequential SAR number
+        status:
+          type: string
+          enum: [DRAFT, UNDER_REVIEW, APPROVED, FILED]
+        filing_deadline:
+          type: string
+          format: date
+          description: Regulatory filing deadline
+        created_at:
+          type: string
+          format: date-time
+
+    RiskAssessmentRequest:
+      type: object
+      properties:
+        assessment_type:
+          type: string
+          enum: [INITIAL, PERIODIC, EVENT_DRIVEN]
+          default: INITIAL
+        include_transactions:
+          type: boolean
+          default: true
+          description: Include transaction history in assessment
+        transaction_period_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 90
+          description: Number of days of transaction history to analyze
+
+    RiskAssessmentResponse:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        overall_risk_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, VERY_HIGH]
+        risk_factors:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskFactor'
+        recommendations:
+          type: array
+          items:
+            type: string
+        next_review_date:
+          type: string
+          format: date
+        assessment_date:
+          type: string
+          format: date-time
+
+    RiskFactor:
+      type: object
+      properties:
+        factor_type:
+          type: string
+          enum: [GEOGRAPHIC, INDUSTRY, CUSTOMER_TYPE, TRANSACTION_PATTERN, VOLUME, FREQUENCY]
+        score:
+          type: number
+          minimum: 0
+          maximum: 100
+        description:
+          type: string
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+        timestamp:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          description: Request identifier for tracking
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INVALID_REQUEST"
+            message: "Invalid request parameters"
+            timestamp: "2025-08-02T10:30:00Z"
+            request_id: "req_123456"
+
+    Unauthorized:
+      description: Unauthorized - invalid or missing authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "UNAUTHORIZED"
+            message: "Invalid or missing authentication token"
+            timestamp: "2025-08-02T10:30:00Z"
+            request_id: "req_123456"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "NOT_FOUND"
+            message: "Customer not found"
+            timestamp: "2025-08-02T10:30:00Z"
+            request_id: "req_123456"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: "INTERNAL_ERROR"
+            message: "An unexpected error occurred"
+            timestamp: "2025-08-02T10:30:00Z"
+            request_id: "req_123456"
+
+tags:
+  - name: KYC Verification
+    description: Know Your Customer verification and due diligence operations
+  - name: Transaction Monitoring
+    description: Real-time transaction monitoring and risk assessment
+  - name: Sanctions Screening
+    description: Sanctions and watchlist screening operations
+  - name: Regulatory Reporting
+    description: Regulatory report generation and filing
+  - name: Risk Assessment
+    description: Customer and transaction risk assessment operations

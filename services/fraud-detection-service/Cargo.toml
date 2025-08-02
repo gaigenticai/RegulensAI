@@ -1,0 +1,94 @@
+[package]
+name = "regulateai-fraud-detection-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Fraud Detection & Prevention service for RegulateAI platform"
+
+[dependencies]
+# Async runtime and web framework
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database and ORM
+sqlx = { workspace = true }
+sea-orm = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+# Machine Learning
+candle-core = "0.3"
+candle-nn = "0.3"
+candle-transformers = "0.3"
+
+# Graph analysis
+petgraph = "0.6"
+
+# Mathematical computations
+nalgebra = "0.32"
+statrs = "0.16"
+
+# Decimal handling
+rust_decimal = { workspace = true }
+
+# Async traits
+async-trait = { workspace = true }
+
+# Hashing for device fingerprinting
+sha2 = "0.10"
+blake3 = "1.5"
+
+# Geolocation
+geoip2 = "0.4"
+
+# Text processing
+regex = { workspace = true }
+levenshtein = "1.0"
+
+# Time series analysis
+timeseries = "0.1"
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# Rate limiting
+governor = "0.6"
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../../shared/common" }
+regulateai-errors = { path = "../../shared/errors" }
+regulateai-config = { path = "../../shared/config" }
+regulateai-database = { path = "../../shared/database" }
+regulateai-auth = { path = "../../shared/auth" }
+regulateai-logging = { path = "../../shared/logging" }

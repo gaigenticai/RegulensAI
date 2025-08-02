@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RegulateAI - Test Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/css/testing.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/testing">
+                <i class="fas fa-shield-alt me-2"></i>RegulateAI Testing
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/testing">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4><i class="fas fa-chart-bar me-2"></i>Test Results</h4>
+                        <div>
+                            <span class="badge bg-{{ test.status | status_color }} me-2">{{ test.status }}</span>
+                            <small class="text-muted">{{ test.completed_at | timeago }}</small>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Test Summary -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <h6>Test Information</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <td><strong>Name:</strong></td>
+                                        <td>{{ test.name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>ID:</strong></td>
+                                        <td><code>{{ test.id }}</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Services:</strong></td>
+                                        <td>
+                                            {% for service in test.services %}
+                                                <span class="badge bg-secondary me-1">{{ service }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Test Types:</strong></td>
+                                        <td>
+                                            {% for type in test.test_types %}
+                                                <span class="badge bg-info me-1">{{ type }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Duration:</strong></td>
+                                        <td>{{ test.duration_ms | duration }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Initiated By:</strong></td>
+                                        <td>{{ test.initiated_by }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Results Summary</h6>
+                                <div class="row text-center mb-3">
+                                    <div class="col-3">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-success">{{ test.results.passed }}</div>
+                                            <div class="stat-label">Passed</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-danger">{{ test.results.failed }}</div>
+                                            <div class="stat-label">Failed</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-warning">{{ test.results.skipped }}</div>
+                                            <div class="stat-label">Skipped</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="stat-item">
+                                            <div class="stat-number text-info">{{ test.results.total_tests }}</div>
+                                            <div class="stat-label">Total</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Success Rate</label>
+                                    <div class="progress" style="height: 25px;">
+                                        <div class="progress-bar bg-success" style="width: {{ test.results.success_rate }}%">
+                                            {{ test.results.success_rate | round(1) }}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Service Results -->
+                        {% if test.results.service_results %}
+                        <div class="mb-4">
+                            <h6>Service Results</h6>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Service</th>
+                                            <th>Passed</th>
+                                            <th>Failed</th>
+                                            <th>Skipped</th>
+                                            <th>Execution Time</th>
+                                            <th>Coverage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for service, result in test.results.service_results %}
+                                        <tr>
+                                            <td><strong>{{ service }}</strong></td>
+                                            <td><span class="text-success">{{ result.passed }}</span></td>
+                                            <td><span class="text-danger">{{ result.failed }}</span></td>
+                                            <td><span class="text-warning">{{ result.skipped }}</span></td>
+                                            <td>{{ result.execution_time_ms }}ms</td>
+                                            <td>
+                                                {% if result.coverage_percent %}
+                                                    {{ result.coverage_percent | round(1) }}%
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Test Type Results -->
+                        {% if test.results.type_results %}
+                        <div class="mb-4">
+                            <h6>Test Type Results</h6>
+                            <div class="row">
+                                {% for type, result in test.results.type_results %}
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ type }}</h6>
+                                            <div class="d-flex justify-content-between">
+                                                <span class="text-success">✓ {{ result.passed }}</span>
+                                                <span class="text-danger">✗ {{ result.failed }}</span>
+                                            </div>
+                                            <small class="text-muted">
+                                                Avg: {{ result.avg_execution_time_ms | round(1) }}ms
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Test Logs -->
+                        {% if test.logs %}
+                        <div class="mb-4">
+                            <h6>Test Logs</h6>
+                            <div class="log-viewer" style="max-height: 400px; overflow-y: auto;">
+                                {% for log in test.logs %}
+                                <div class="log-entry log-{{ log.level | lower }}">
+                                    <span class="log-timestamp">{{ log.timestamp | time }}</span>
+                                    <span class="log-level badge bg-{{ log.level | log_level_color }}">{{ log.level }}</span>
+                                    {% if log.service %}
+                                        <span class="log-service badge bg-secondary">{{ log.service }}</span>
+                                    {% endif %}
+                                    {% if log.test_name %}
+                                        <span class="log-test text-info">{{ log.test_name }}</span>
+                                    {% endif %}
+                                    <span class="log-message">{{ log.message }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Actions -->
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" onclick="rerunTest('{{ test.id }}')">
+                                <i class="fas fa-redo me-2"></i>Rerun Test
+                            </button>
+                            <button class="btn btn-secondary" onclick="downloadResults('{{ test.id }}')">
+                                <i class="fas fa-download me-2"></i>Download Results
+                            </button>
+                            <button class="btn btn-info" onclick="shareResults('{{ test.id }}')">
+                                <i class="fas fa-share me-2"></i>Share Results
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function rerunTest(testId) {
+            if (confirm('Are you sure you want to rerun this test?')) {
+                // Implementation for rerunning test
+                fetch(`/api/testing/rerun/${testId}`, {
+                    method: 'POST'
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.href = '/testing';
+                    } else {
+                        alert('Failed to rerun test');
+                    }
+                });
+            }
+        }
+
+        function downloadResults(testId) {
+            // Implementation for downloading results
+            window.location.href = `/api/testing/results/${testId}/download`;
+        }
+
+        function shareResults(testId) {
+            // Implementation for sharing results
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Results URL copied to clipboard');
+            });
+        }
+    </script>
+</body>
+</html>

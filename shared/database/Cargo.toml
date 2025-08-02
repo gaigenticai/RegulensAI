@@ -1,0 +1,39 @@
+[package]
+name = "regulateai-database"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Database connection and ORM utilities for RegulateAI services"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Database and ORM
+sqlx = { workspace = true }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../common" }
+regulateai-errors = { path = "../errors" }
+regulateai-config = { path = "../config" }

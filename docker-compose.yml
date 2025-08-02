@@ -1,0 +1,312 @@
+version: '3.8'
+
+services:
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: regulateai-postgres
+    environment:
+      POSTGRES_DB: regulateai
+      POSTGRES_USER: regulateai
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U regulateai -d regulateai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache and Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: regulateai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: regulateai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Monitoring Services
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: regulateai-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - regulateai-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: regulateai-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+    networks:
+      - regulateai-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: regulateai-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Core Services
+  aml-service:
+    build:
+      context: .
+      dockerfile: services/aml/Dockerfile
+    container_name: regulateai-aml-service
+    ports:
+      - "8082:8082"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  compliance-service:
+    build:
+      context: .
+      dockerfile: services/compliance-service/Dockerfile
+    container_name: regulateai-compliance-service
+    ports:
+      - "8083:8083"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  risk-management-service:
+    build:
+      context: .
+      dockerfile: services/risk-management-service/Dockerfile
+    container_name: regulateai-risk-management-service
+    ports:
+      - "8084:8084"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  fraud-detection-service:
+    build:
+      context: .
+      dockerfile: services/fraud-detection-service/Dockerfile
+    container_name: regulateai-fraud-detection-service
+    ports:
+      - "8085:8085"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  cybersecurity-service:
+    build:
+      context: .
+      dockerfile: services/cybersecurity-service/Dockerfile
+    container_name: regulateai-cybersecurity-service
+    ports:
+      - "8086:8086"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ai-orchestration-service:
+    build:
+      context: .
+      dockerfile: services/ai-orchestration-service/Dockerfile
+    container_name: regulateai-ai-orchestration-service
+    ports:
+      - "8087:8087"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=your-jwt-secret-key
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  documentation-service:
+    build:
+      context: .
+      dockerfile: services/documentation-service/Dockerfile
+    container_name: regulateai-documentation-service
+    ports:
+      - "8090:8090"
+    environment:
+      - DATABASE_URL=postgresql://regulateai:password@postgres:5432/regulateai
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your-jwt-secret-key
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - regulateai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Development Tools
+  adminer:
+    image: adminer:latest
+    container_name: regulateai-adminer
+    ports:
+      - "8081:8080"
+    networks:
+      - regulateai-network
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  prometheus_data:
+    driver: local
+
+networks:
+  regulateai-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

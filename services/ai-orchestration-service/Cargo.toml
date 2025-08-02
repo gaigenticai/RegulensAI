@@ -1,0 +1,103 @@
+[package]
+name = "regulateai-ai-orchestration-service"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "AI Agent Orchestration service for RegulateAI platform"
+
+[dependencies]
+# Async runtime and web framework
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database and ORM
+sqlx = { workspace = true }
+sea-orm = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+# AI/ML libraries
+candle-core = "0.3"
+candle-nn = "0.3"
+candle-transformers = "0.3"
+tokenizers = "0.15"
+
+# Natural Language Processing
+nlp = "0.6"
+lingua = "1.6"
+
+# Vector database for embeddings
+qdrant-client = "1.7"
+
+# Text processing
+regex = { workspace = true }
+stemmer = "1.2"
+
+# Async traits
+async-trait = { workspace = true }
+
+# Rate limiting for AI API calls
+governor = "0.6"
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# Template engine for prompt generation
+tera = "1.19"
+
+# JSON schema validation
+jsonschema = "0.17"
+
+# Workflow orchestration
+petgraph = "0.6"
+
+# Decimal handling
+rust_decimal = { workspace = true }
+
+# Base64 encoding
+base64 = "0.21"
+
+# OpenAI API client
+async-openai = "0.17"
+
+# Anthropic Claude API client
+anthropic = "0.1"
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../../shared/common" }
+regulateai-errors = { path = "../../shared/errors" }
+regulateai-config = { path = "../../shared/config" }
+regulateai-database = { path = "../../shared/database" }
+regulateai-auth = { path = "../../shared/auth" }
+regulateai-logging = { path = "../../shared/logging" }

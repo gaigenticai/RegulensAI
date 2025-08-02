@@ -1,0 +1,114 @@
+# RegulateAI Default Configuration
+# This file contains default configuration values that can be overridden by environment variables
+
+application:
+  name: "RegulateAI"
+  version: "0.1.0"
+  environment: "development"
+  
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+  keep_alive: 75
+  client_timeout: 5000
+  client_shutdown: 5000
+
+database:
+  max_connections: 20
+  min_connections: 5
+  acquire_timeout: 30
+  idle_timeout: 600
+  max_lifetime: 1800
+
+redis:
+  max_connections: 10
+  min_connections: 2
+  connection_timeout: 5
+  response_timeout: 5
+
+security:
+  jwt:
+    expiration: 3600
+    refresh_expiration: 86400
+  cors:
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["Content-Type", "Authorization", "X-Requested-With"]
+    max_age: 3600
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 10
+
+logging:
+  level: "info"
+  format: "json"
+  include_location: true
+  include_thread_id: true
+
+monitoring:
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+  tracing:
+    enabled: true
+    service_name: "regulateai"
+    sample_rate: 0.1
+  health_check:
+    enabled: true
+    path: "/health"
+
+services:
+  aml:
+    port: 8081
+    metrics_port: 9091
+    transaction_threshold: 10000
+    risk_score_threshold: 75
+    sanctions_update_interval: 3600
+    
+  compliance:
+    port: 8082
+    metrics_port: 9092
+    audit_retention_days: 2555
+    policy_review_interval: 2592000
+    attestation_reminder_days: 30
+    
+  risk_management:
+    port: 8083
+    metrics_port: 9093
+    assessment_interval: 86400
+    monte_carlo_iterations: 10000
+    
+  fraud_detection:
+    port: 8084
+    metrics_port: 9094
+    detection_threshold: 0.8
+    model_update_interval: 86400
+    
+  cybersecurity:
+    port: 8085
+    metrics_port: 9095
+    vuln_scan_interval: 86400
+    
+  ai_orchestration:
+    port: 8086
+    metrics_port: 9096
+    agent_timeout: 300
+    context_window_size: 4096
+    response_cache_ttl: 3600
+
+external_apis:
+  ofac:
+    timeout: 30
+    retry_attempts: 3
+    retry_delay: 1000
+  kyc:
+    timeout: 30
+    retry_attempts: 3
+    retry_delay: 1000
+  openai:
+    model: "gpt-4"
+    max_tokens: 4096
+    temperature: 0.1
+    timeout: 60

@@ -1,0 +1,134 @@
+[workspace]
+resolver = "2"
+members = [
+    "shared/common",
+    "shared/auth",
+    "shared/database",
+    "shared/logging",
+    "shared/config",
+    "shared/errors",
+    "services/aml",
+    "services/compliance-service",
+    "services/risk-management-service",
+    "services/fraud-detection-service",
+    "services/cybersecurity-service",
+    "services/ai-orchestration-service",
+    "services/api-gateway",
+    "services/documentation-service"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["RegulateAI Team"]
+license = "MIT"
+repository = "https://github.com/regulateai/regulateai"
+homepage = "https://regulateai.com"
+description = "Enterprise-grade regulatory compliance and risk management system"
+keywords = ["compliance", "risk-management", "aml", "fraud-detection", "cybersecurity"]
+categories = ["finance", "security", "enterprise"]
+
+[workspace.dependencies]
+# Async runtime and utilities
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = "0.7"
+futures = "0.3"
+async-trait = "0.1"
+
+# Web framework and HTTP
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["full"] }
+hyper = { version = "1.0", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+
+# Serialization and data handling
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# Database and ORM
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json", "migrate"] }
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
+sea-orm-migration = "0.12"
+
+# Redis and caching
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+deadpool-redis = "0.14"
+
+# Message queues
+lapin = "2.3"
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+
+# Authentication and security
+jsonwebtoken = "9.2"
+argon2 = "0.5"
+rand = "0.8"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Logging and observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-opentelemetry = "0.22"
+opentelemetry = { version = "0.21", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "0.20", features = ["rt-tokio"] }
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
+# Configuration and environment
+config = "0.14"
+dotenvy = "0.15"
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+color-eyre = "0.6"
+
+# Date and time
+chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3", features = ["serde", "macros"] }
+
+# Validation and parsing
+validator = { version = "0.18", features = ["derive"] }
+regex = "1.10"
+url = { version = "2.5", features = ["serde"] }
+
+# Cryptography and hashing
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.21"
+
+# Mathematical and financial
+rust_decimal = { version = "1.33", features = ["serde"] }
+nalgebra = "0.32"
+statrs = "0.16"
+rand_distr = "0.4"
+
+# File processing
+csv = "1.3"
+calamine = "0.22"
+printpdf = "0.6"
+
+# String processing
+fuzzy-matcher = "0.3"
+levenshtein = "1.0"
+stemmer = "0.3"
+
+# Machine Learning and AI
+candle-core = "0.3"
+candle-nn = "0.3"
+candle-transformers = "0.3"
+tokenizers = "0.15"
+
+# Monitoring and metrics
+prometheus = "0.13"
+
+# Testing
+mockall = "0.12"
+wiremock = "0.5"
+testcontainers = "0.15"
+
+# Development tools
+cargo-watch = "8.4"

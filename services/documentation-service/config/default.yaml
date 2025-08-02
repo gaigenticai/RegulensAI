@@ -1,0 +1,35 @@
+# Documentation Service Configuration
+server:
+  host: "0.0.0.0"
+  port: 8090
+  workers: 4
+
+database:
+  url: "${DATABASE_URL}"
+  max_connections: 10
+  min_connections: 1
+  connect_timeout: 30
+  idle_timeout: 600
+
+redis:
+  url: "${REDIS_URL}"
+  pool_size: 10
+  timeout: 5
+
+auth:
+  jwt_secret: "${JWT_SECRET}"
+  token_expiry: 3600
+
+search:
+  index_path: "/tmp/search_index"
+  max_results: 100
+
+logging:
+  level: "info"
+  format: "json"
+
+testing:
+  max_concurrent_runs: 3
+  test_timeout_seconds: 3600
+  enable_realtime_logs: true
+  result_retention_days: 90

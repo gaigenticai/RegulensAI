@@ -1,0 +1,83 @@
+[package]
+name = "regulateai-api-gateway"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "API Gateway for RegulateAI platform with routing, authentication, and rate limiting"
+
+[dependencies]
+# Async runtime and web framework
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Logging and tracing
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Configuration
+config = { workspace = true }
+
+# HTTP client for service proxying
+reqwest = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+
+# Rate limiting
+governor = "0.6"
+
+# Load balancing
+tower-balance = "0.3"
+tower-discover = "0.3"
+
+# Service discovery
+consul = "0.4"
+
+# Caching
+moka = { version = "0.12", features = ["future"] }
+
+# Circuit breaker
+tower-circuit-breaker = "0.1"
+
+# Request/response transformation
+hyper = { version = "1.0", features = ["full"] }
+
+# TLS support
+rustls = "0.22"
+tokio-rustls = "0.25"
+
+# Compression
+tower-compression = "0.1"
+
+# CORS
+tower-cors = "0.1"
+
+# Health checking
+tower-health = "0.1"
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../../shared/common" }
+regulateai-errors = { path = "../../shared/errors" }
+regulateai-config = { path = "../../shared/config" }
+regulateai-auth = { path = "../../shared/auth" }
+regulateai-logging = { path = "../../shared/logging" }

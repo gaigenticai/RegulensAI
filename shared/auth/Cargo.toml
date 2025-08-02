@@ -1,0 +1,50 @@
+[package]
+name = "regulateai-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Authentication and authorization for RegulateAI services"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# JWT handling
+jsonwebtoken = { workspace = true }
+
+# Password hashing
+argon2 = { workspace = true }
+
+# Random generation
+rand = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Date and time
+chrono = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Validation
+validator = { workspace = true }
+
+# Base64 encoding
+base64 = { workspace = true }
+
+# Cryptographic hashing
+sha2 = { workspace = true }
+hmac = { workspace = true }
+
+# RegulateAI shared libraries
+regulateai-common = { path = "../common" }
+regulateai-errors = { path = "../errors" }
+regulateai-config = { path = "../config" }
