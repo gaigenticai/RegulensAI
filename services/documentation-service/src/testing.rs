@@ -90,21 +90,24 @@ pub struct TestExecutionRequest {
 pub struct TestOptions {
     /// Run tests in parallel
     pub parallel: bool,
-    
+
     /// Capture test output
     pub capture_output: bool,
-    
+
     /// Fail fast on first error
     pub fail_fast: bool,
-    
+
     /// Verbose output
     pub verbose: bool,
-    
+
     /// Number of test threads
     pub test_threads: Option<usize>,
-    
+
     /// Test timeout per test
     pub test_timeout: Option<u64>,
+
+    /// Enable code coverage analysis
+    pub enable_coverage: bool,
 }
 
 /// Test types
@@ -1270,14 +1273,38 @@ impl TestExecutionManager {
             .map_err(|e| RegulateAIError::InternalError(format!("Test process failed: {}", e)))?;
         
         let execution_time_ms = start_time.elapsed().as_millis() as u64;
-        
+
+        // Calculate coverage percentage if coverage analysis is available
+        let coverage_percent = if options.enable_coverage {
+            match self.execute_coverage_analysis(run_id).await {
+                Ok(coverage_output) => {
+                    match self.parse_coverage_output(&coverage_output).await {
+                        Ok(coverage_details) => Some(coverage_details.line_coverage),
+                        Err(e) => {
+                            warn!("Failed to parse coverage data: {}", e);
+                            None
+                        }
+                    }
+                },
+                Err(e) => {
+                    warn!("Failed to execute coverage analysis: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         Ok(ServiceTestResult {
             service: service.to_string(),
             passed,
             failed,
             skipped,
             execution_time_ms,
-            coverage_percent: None, // TODO: Implement coverage calculation
+            coverage_percent,
+            coverage_details: None, // Will be populated separately if needed
+            performance_metrics: None,
+            error_analysis: None,
         })
     }
     
@@ -1612,13 +1639,16 @@ impl TestExecutionManager {
         let total_lines = coverage_data["total_lines"].as_u64().unwrap_or(0) as u32;
         let covered_lines = coverage_data["covered_lines"].as_u64().unwrap_or(0) as u32;
 
-        // Build file coverage map
+        // Build file coverage map and identify uncovered files
         let mut file_coverage = HashMap::new();
+        let mut uncovered_files = Vec::new();
+
         if let Some(files) = coverage_data["files"].as_object() {
             for (file_path, file_data) in files {
+                let file_line_coverage = file_data["coverage"].as_f64().unwrap_or(0.0);
                 let file_cov = FileCoverage {
                     file_path: file_path.clone(),
-                    line_coverage: file_data["coverage"].as_f64().unwrap_or(0.0),
+                    line_coverage: file_line_coverage,
                     uncovered_lines: file_data["uncovered_lines"].as_array()
                         .unwrap_or(&Vec::new())
                         .iter()
@@ -1627,7 +1657,24 @@ impl TestExecutionManager {
                     total_lines: file_data["total_lines"].as_u64().unwrap_or(0) as u32,
                     covered_lines: file_data["covered_lines"].as_u64().unwrap_or(0) as u32,
                 };
+
+                // Consider files with 0% coverage as uncovered
+                if file_line_coverage == 0.0 && file_cov.total_lines > 0 {
+                    uncovered_files.push(file_path.clone());
+                }
+
                 file_coverage.insert(file_path.clone(), file_cov);
+            }
+        }
+
+        // Also check for files that might be completely missing from coverage data
+        if let Some(uncovered_file_list) = coverage_data["uncovered_files"].as_array() {
+            for file_value in uncovered_file_list {
+                if let Some(file_path) = file_value.as_str() {
+                    if !uncovered_files.contains(&file_path.to_string()) {
+                        uncovered_files.push(file_path.to_string());
+                    }
+                }
             }
         }
 
@@ -1642,7 +1689,7 @@ impl TestExecutionManager {
             covered_branches: coverage_data["covered_branches"].as_u64().unwrap_or(0) as u32,
             total_functions: coverage_data["total_functions"].as_u64().unwrap_or(0) as u32,
             covered_functions: coverage_data["covered_functions"].as_u64().unwrap_or(0) as u32,
-            uncovered_files: Vec::new(), // TODO: Extract from coverage data
+            uncovered_files,
             file_coverage,
         })
     }

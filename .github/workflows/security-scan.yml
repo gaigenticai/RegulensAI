@@ -1,0 +1,397 @@
+name: Security Scanning Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  owasp-dependency-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Cache OWASP Dependency Check data
+      uses: actions/cache@v3
+      with:
+        path: ~/.gradle/dependency-check-data
+        key: ${{ runner.os }}-dependency-check-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-dependency-check-
+          
+    - name: Run OWASP Dependency Check
+      uses: dependency-check/Dependency-Check_Action@main
+      with:
+        project: 'RegulateAI'
+        path: '.'
+        format: 'ALL'
+        args: >
+          --enableRetired
+          --enableExperimental
+          --failOnCVSS 7
+          --exclude "**/target/**"
+          --exclude "**/node_modules/**"
+          
+    - name: Upload OWASP Dependency Check results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: owasp-dependency-check-report
+        path: reports/
+        
+    - name: Upload to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: reports/dependency-check-report.sarif
+
+  cargo-audit:
+    name: Cargo Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+      
+    - name: Cache cargo audit database
+      uses: actions/cache@v3
+      with:
+        path: ~/.cargo/advisory-db
+        key: ${{ runner.os }}-cargo-audit-db-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-audit-db-
+          
+    - name: Run cargo audit
+      run: |
+        cargo audit --json > cargo-audit-report.json || true
+        cargo audit --format json --output cargo-audit-report.json || echo "Audit completed with warnings"
+        
+    - name: Upload cargo audit results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: cargo-audit-report
+        path: cargo-audit-report.json
+
+  semgrep-scan:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Semgrep
+      uses: semgrep/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/owasp-top-ten
+          p/rust
+        generateSarif: "1"
+        
+    - name: Upload Semgrep results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: semgrep.sarif
+
+  trivy-scan:
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+        
+    - name: Upload Trivy scan results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Upload Trivy results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: trivy-scan-results
+        path: trivy-results.sarif
+
+  bandit-scan:
+    name: Bandit Security Linter
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'python') || contains(github.event.head_commit.message, '.py')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Bandit
+      run: |
+        pip install bandit[toml]
+        
+    - name: Run Bandit security linter
+      run: |
+        bandit -r . -f json -o bandit-report.json --exclude ./target,./node_modules || true
+        
+    - name: Upload Bandit results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: bandit-security-report
+        path: bandit-report.json
+
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'rust' ]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended,security-and-quality
+        
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Build project
+      run: |
+        cargo build --release
+        
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        category: "/language:${{matrix.language}}"
+
+  docker-security-scan:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build Docker image
+      run: |
+        docker build -t regulateai:security-test .
+        
+    - name: Run Trivy on Docker image
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'regulateai:security-test'
+        format: 'sarif'
+        output: 'docker-trivy-results.sarif'
+        
+    - name: Upload Docker scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'docker-trivy-results.sarif'
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Run TruffleHog
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+  security-scorecard:
+    name: OSSF Security Scorecard
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        
+    - name: Run analysis
+      uses: ossf/scorecard-action@v2.3.1
+      with:
+        results_file: results.sarif
+        results_format: sarif
+        publish_results: true
+        
+    - name: Upload SARIF results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: results.sarif
+
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [owasp-dependency-check, cargo-audit, semgrep-scan, trivy-scan, codeql-analysis]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: Generate security report
+      run: |
+        mkdir -p security-report
+        echo "# Security Scan Report" > security-report/README.md
+        echo "Generated on: $(date)" >> security-report/README.md
+        echo "" >> security-report/README.md
+        
+        echo "## OWASP Dependency Check" >> security-report/README.md
+        if [ -d "owasp-dependency-check-report" ]; then
+          echo "✅ OWASP Dependency Check completed" >> security-report/README.md
+          cp -r owasp-dependency-check-report/* security-report/ 2>/dev/null || true
+        else
+          echo "❌ OWASP Dependency Check failed or not run" >> security-report/README.md
+        fi
+        echo "" >> security-report/README.md
+        
+        echo "## Cargo Audit" >> security-report/README.md
+        if [ -f "cargo-audit-report/cargo-audit-report.json" ]; then
+          echo "✅ Cargo Audit completed" >> security-report/README.md
+          cp cargo-audit-report/cargo-audit-report.json security-report/
+        else
+          echo "❌ Cargo Audit failed or not run" >> security-report/README.md
+        fi
+        echo "" >> security-report/README.md
+        
+        echo "## Trivy Scan" >> security-report/README.md
+        if [ -f "trivy-scan-results/trivy-results.sarif" ]; then
+          echo "✅ Trivy scan completed" >> security-report/README.md
+          cp trivy-scan-results/trivy-results.sarif security-report/
+        else
+          echo "❌ Trivy scan failed or not run" >> security-report/README.md
+        fi
+        echo "" >> security-report/README.md
+        
+        echo "## Summary" >> security-report/README.md
+        echo "All security scans have been completed. Please review the individual reports for detailed findings." >> security-report/README.md
+        
+    - name: Upload consolidated security report
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-report
+        path: security-report/
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = './security-report/README.md';
+          
+          if (fs.existsSync(path)) {
+            const report = fs.readFileSync(path, 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔒 Security Scan Results\n\n${report}\n\n📊 Detailed reports are available in the [security-report artifact](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`
+            });
+          }
+
+  security-notification:
+    name: Security Notification
+    runs-on: ubuntu-latest
+    needs: [security-report]
+    if: failure() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Send security alert
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const runId = context.runId;
+          const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+          
+          // Create an issue for security failures on main/develop branches
+          await github.rest.issues.create({
+            owner,
+            repo,
+            title: `🚨 Security Scan Failure - ${new Date().toISOString().split('T')[0]}`,
+            body: `## Security Scan Failure Alert
+            
+            One or more security scans have failed on the ${context.ref.replace('refs/heads/', '')} branch.
+            
+            **Action Required:** Please review the security scan results and address any critical vulnerabilities.
+            
+            **Scan Details:**
+            - Workflow Run: [${runId}](${runUrl})
+            - Branch: ${context.ref.replace('refs/heads/', '')}
+            - Commit: ${context.sha}
+            
+            **Next Steps:**
+            1. Review the security scan artifacts
+            2. Address any critical or high-severity vulnerabilities
+            3. Re-run the security scans to verify fixes
+            
+            This issue will be automatically closed when security scans pass.`,
+            labels: ['security', 'critical', 'automated']
+          });

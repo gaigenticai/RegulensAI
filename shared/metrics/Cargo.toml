@@ -1,0 +1,56 @@
+[package]
+name = "regulateai-metrics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Metrics and monitoring
+prometheus = { version = "0.13", features = ["process"] }
+lazy_static = "1.4"
+
+# HTTP server for metrics endpoint
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Async utilities
+futures = "0.3"
+tokio-stream = "0.1"
+
+# Time series data
+influxdb = { version = "0.7", features = ["derive"] }
+
+# Configuration
+config = "0.14"
+
+# Logging
+tracing = "0.1"
+
+# Mathematical operations
+statrs = "0.16"
+
+# Database for metrics storage
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+
+# Redis for real-time metrics
+redis = { version = "0.24", features = ["aio", "tokio-comp"] }
+
+# Background task scheduling
+cron = "0.12"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "metrics_benchmarks"
+harness = false
