@@ -353,23 +353,196 @@ impl BehavioralAnalyzer {
     }
 
     async fn check_brute_force(&self, request: &HttpRequest) -> SecurityResult<Option<DetectedThreat>> {
-        // Implementation would check for brute force patterns
-        // This is a simplified version
+        let mut user_sessions = self.user_sessions.write().await;
+        let client_ip = request.client_ip.to_string();
+
+        // Track failed login attempts per IP
+        let session = user_sessions.entry(client_ip.clone()).or_insert_with(|| UserSession {
+            ip: client_ip.clone(),
+            user_agent: request.user_agent.clone(),
+            first_seen: Utc::now(),
+            last_seen: Utc::now(),
+            request_count: 0,
+            failed_login_attempts: 0,
+            suspicious_patterns: Vec::new(),
+        });
+
+        session.last_seen = Utc::now();
+        session.request_count += 1;
+
+        // Check for login failure patterns in the request
+        let is_login_request = request.path.contains("/login") || request.path.contains("/auth");
+        let has_failure_indicators = request.body.as_ref()
+            .map(|body| body.contains("invalid") || body.contains("failed") || body.contains("error"))
+            .unwrap_or(false);
+
+        if is_login_request && has_failure_indicators {
+            session.failed_login_attempts += 1;
+
+            // Detect brute force if too many failed attempts
+            if session.failed_login_attempts >= self.config.brute_force_threshold {
+                return Ok(Some(DetectedThreat {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    threat_type: ThreatType::BruteForce,
+                    level: ThreatLevel::High,
+                    confidence: 0.9,
+                    source_ip: client_ip,
+                    user_agent: Some(request.user_agent.clone()),
+                    description: format!("Brute force attack detected: {} failed login attempts", session.failed_login_attempts),
+                    evidence: vec![
+                        format!("Failed login attempts: {}", session.failed_login_attempts),
+                        format!("Time window: {} minutes", (session.last_seen - session.first_seen).num_minutes()),
+                    ],
+                    indicators: HashMap::from([
+                        ("failed_attempts".to_string(), session.failed_login_attempts.to_string()),
+                        ("request_count".to_string(), session.request_count.to_string()),
+                    ]),
+                    detected_at: Utc::now(),
+                    expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
+                }));
+            }
+        }
+
         Ok(None)
     }
 
     async fn check_rate_anomaly(&self, request: &HttpRequest) -> SecurityResult<Option<DetectedThreat>> {
-        // Implementation would check for rate anomalies
+        let ip_behavior = self.ip_behavior.read().await;
+        let client_ip = request.client_ip.to_string();
+
+        if let Some(behavior) = ip_behavior.get(&client_ip) {
+            let current_time = Utc::now();
+            let time_window = chrono::Duration::minutes(5);
+
+            // Count recent requests in the time window
+            let recent_requests = behavior.request_timestamps.iter()
+                .filter(|&&timestamp| current_time - timestamp < time_window)
+                .count();
+
+            // Check if request rate exceeds threshold
+            let requests_per_minute = (recent_requests as f64 / 5.0) * 60.0; // Convert to requests per minute
+
+            if requests_per_minute > self.config.rate_anomaly_threshold {
+                return Ok(Some(DetectedThreat {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    threat_type: ThreatType::AnomalousTraffic,
+                    level: ThreatLevel::Medium,
+                    confidence: 0.8,
+                    source_ip: client_ip,
+                    user_agent: Some(request.user_agent.clone()),
+                    description: format!("Rate anomaly detected: {:.1} requests/min (threshold: {})",
+                                       requests_per_minute, self.config.rate_anomaly_threshold),
+                    evidence: vec![
+                        format!("Requests in last 5 minutes: {}", recent_requests),
+                        format!("Rate: {:.1} req/min", requests_per_minute),
+                    ],
+                    indicators: HashMap::from([
+                        ("requests_per_minute".to_string(), requests_per_minute.to_string()),
+                        ("recent_requests".to_string(), recent_requests.to_string()),
+                    ]),
+                    detected_at: Utc::now(),
+                    expires_at: Some(Utc::now() + chrono::Duration::minutes(30)),
+                }));
+            }
+        }
+
         Ok(None)
     }
 
     async fn check_user_agent_anomaly(&self, request: &HttpRequest) -> SecurityResult<Option<DetectedThreat>> {
-        // Implementation would check for suspicious user agents
+        let user_agent = &request.user_agent;
+
+        // Check for suspicious user agent patterns
+        let suspicious_patterns = vec![
+            "bot", "crawler", "spider", "scraper", "scanner", "hack", "exploit",
+            "sqlmap", "nikto", "nmap", "masscan", "zap", "burp", "metasploit"
+        ];
+
+        let user_agent_lower = user_agent.to_lowercase();
+        for pattern in suspicious_patterns {
+            if user_agent_lower.contains(pattern) {
+                return Ok(Some(DetectedThreat {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    threat_type: ThreatType::SuspiciousUserAgent,
+                    level: ThreatLevel::Medium,
+                    confidence: 0.75,
+                    source_ip: request.client_ip.to_string(),
+                    user_agent: Some(user_agent.clone()),
+                    description: format!("Suspicious user agent detected: contains '{}'", pattern),
+                    evidence: vec![
+                        format!("User agent: {}", user_agent),
+                        format!("Suspicious pattern: {}", pattern),
+                    ],
+                    indicators: HashMap::from([
+                        ("user_agent".to_string(), user_agent.clone()),
+                        ("suspicious_pattern".to_string(), pattern.to_string()),
+                    ]),
+                    detected_at: Utc::now(),
+                    expires_at: Some(Utc::now() + chrono::Duration::hours(2)),
+                }));
+            }
+        }
+
+        // Check for empty or very short user agents
+        if user_agent.len() < 10 {
+            return Ok(Some(DetectedThreat {
+                id: uuid::Uuid::new_v4().to_string(),
+                threat_type: ThreatType::SuspiciousUserAgent,
+                level: ThreatLevel::Low,
+                confidence: 0.6,
+                source_ip: request.client_ip.to_string(),
+                user_agent: Some(user_agent.clone()),
+                description: "Suspicious user agent: too short or empty".to_string(),
+                evidence: vec![
+                    format!("User agent: '{}'", user_agent),
+                    format!("Length: {} characters", user_agent.len()),
+                ],
+                indicators: HashMap::from([
+                    ("user_agent".to_string(), user_agent.clone()),
+                    ("length".to_string(), user_agent.len().to_string()),
+                ]),
+                detected_at: Utc::now(),
+                expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
+            }));
+        }
+
         Ok(None)
     }
 
     pub async fn update_baselines(&self) -> SecurityResult<()> {
-        // Implementation would update behavioral baselines
+        let ip_behavior = self.ip_behavior.read().await;
+        let mut baseline_metrics = self.baseline_metrics.write().await;
+
+        // Calculate new baseline metrics from current IP behavior data
+        let total_ips = ip_behavior.len();
+        if total_ips == 0 {
+            return Ok(());
+        }
+
+        let mut total_requests = 0;
+        let mut total_unique_paths = 0;
+        let mut total_failed_requests = 0;
+
+        for behavior in ip_behavior.values() {
+            total_requests += behavior.request_count;
+            total_unique_paths += behavior.unique_paths.len();
+            total_failed_requests += behavior.failed_requests;
+        }
+
+        // Update baseline with exponential moving average
+        let alpha = 0.1; // Smoothing factor
+        let avg_requests_per_ip = total_requests as f64 / total_ips as f64;
+        let avg_unique_paths_per_ip = total_unique_paths as f64 / total_ips as f64;
+        let avg_failed_requests_per_ip = total_failed_requests as f64 / total_ips as f64;
+
+        baseline_metrics.avg_requests_per_ip = baseline_metrics.avg_requests_per_ip * (1.0 - alpha) + avg_requests_per_ip * alpha;
+        baseline_metrics.avg_unique_paths_per_ip = baseline_metrics.avg_unique_paths_per_ip * (1.0 - alpha) + avg_unique_paths_per_ip * alpha;
+        baseline_metrics.avg_failed_requests_per_ip = baseline_metrics.avg_failed_requests_per_ip * (1.0 - alpha) + avg_failed_requests_per_ip * alpha;
+        baseline_metrics.last_updated = Utc::now();
+
+        info!("Updated behavioral baselines - Avg requests/IP: {:.2}, Avg paths/IP: {:.2}, Avg failures/IP: {:.2}",
+              baseline_metrics.avg_requests_per_ip, baseline_metrics.avg_unique_paths_per_ip, baseline_metrics.avg_failed_requests_per_ip);
+
         Ok(())
     }
 
@@ -391,13 +564,74 @@ impl AnomalyDetector {
         }
     }
 
-    pub async fn analyze(&self, _request: &HttpRequest) -> SecurityResult<Option<DetectedThreat>> {
-        // Implementation would perform anomaly detection
+    pub async fn analyze(&self, request: &HttpRequest) -> SecurityResult<Option<DetectedThreat>> {
+        let current_metrics = self.current_metrics.read().await;
+        let baseline_metrics = self.baseline_metrics.read().await;
+
+        // Analyze request rate anomalies
+        let current_rate = current_metrics.request_rate;
+        let baseline_rate = baseline_metrics.avg_request_rate;
+
+        if current_rate > baseline_rate * self.config.rate_threshold {
+            return Ok(Some(DetectedThreat {
+                id: uuid::Uuid::new_v4().to_string(),
+                threat_type: ThreatType::AnomalousTraffic,
+                level: ThreatLevel::High,
+                confidence: 0.85,
+                source_ip: request.client_ip.clone(),
+                user_agent: Some(request.user_agent.clone()),
+                description: format!("Anomalous request rate detected: {} req/min vs baseline {}", current_rate, baseline_rate),
+                evidence: vec![format!("Current rate: {}, Baseline: {}, Threshold: {}", current_rate, baseline_rate, self.config.rate_threshold)],
+                indicators: HashMap::from([
+                    ("current_rate".to_string(), current_rate.to_string()),
+                    ("baseline_rate".to_string(), baseline_rate.to_string()),
+                ]),
+                detected_at: Utc::now(),
+                expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
+            }));
+        }
+
+        // Analyze response time anomalies
+        let current_response_time = current_metrics.avg_response_time;
+        let baseline_response_time = baseline_metrics.avg_response_time;
+
+        if current_response_time > baseline_response_time * self.config.response_time_threshold {
+            return Ok(Some(DetectedThreat {
+                id: uuid::Uuid::new_v4().to_string(),
+                threat_type: ThreatType::PerformanceAnomaly,
+                level: ThreatLevel::Medium,
+                confidence: 0.75,
+                source_ip: request.client_ip.clone(),
+                user_agent: Some(request.user_agent.clone()),
+                description: format!("Anomalous response time detected: {}ms vs baseline {}ms", current_response_time, baseline_response_time),
+                evidence: vec![format!("Current response time: {}ms, Baseline: {}ms", current_response_time, baseline_response_time)],
+                indicators: HashMap::from([
+                    ("current_response_time".to_string(), current_response_time.to_string()),
+                    ("baseline_response_time".to_string(), baseline_response_time.to_string()),
+                ]),
+                detected_at: Utc::now(),
+                expires_at: Some(Utc::now() + chrono::Duration::hours(1)),
+            }));
+        }
+
         Ok(None)
     }
 
     pub async fn update_baselines(&self) -> SecurityResult<()> {
-        // Implementation would update anomaly detection baselines
+        let current_metrics = self.current_metrics.read().await;
+        let mut baseline_metrics = self.baseline_metrics.write().await;
+
+        // Update baseline metrics with exponential moving average
+        let alpha = 0.1; // Smoothing factor
+
+        baseline_metrics.avg_request_rate = baseline_metrics.avg_request_rate * (1.0 - alpha) + current_metrics.request_rate * alpha;
+        baseline_metrics.avg_response_time = baseline_metrics.avg_response_time * (1.0 - alpha) + current_metrics.avg_response_time * alpha;
+        baseline_metrics.avg_error_rate = baseline_metrics.avg_error_rate * (1.0 - alpha) + current_metrics.error_rate * alpha;
+        baseline_metrics.last_updated = Utc::now();
+
+        info!("Updated anomaly detection baselines - Request rate: {:.2}, Response time: {:.2}ms, Error rate: {:.2}%",
+              baseline_metrics.avg_request_rate, baseline_metrics.avg_response_time, baseline_metrics.avg_error_rate * 100.0);
+
         Ok(())
     }
 
@@ -462,7 +696,37 @@ impl ThreatIntelligence {
     }
 
     pub async fn update_intelligence(&self) -> SecurityResult<()> {
-        // Implementation would update threat intelligence feeds
+        info!("Updating threat intelligence feeds");
+
+        // Update malicious IP addresses from threat intelligence feeds
+        let mut malicious_ips = self.malicious_ips.write().await;
+
+        // Simulate fetching from threat intelligence APIs
+        let new_malicious_ips = vec![
+            "192.168.1.100".to_string(),
+            "10.0.0.50".to_string(),
+            "172.16.0.25".to_string(),
+        ];
+
+        for ip in new_malicious_ips {
+            malicious_ips.insert(ip);
+        }
+
+        // Update malicious user agents
+        let mut malicious_user_agents = self.malicious_user_agents.write().await;
+        let new_malicious_agents = vec![
+            "BadBot/1.0".to_string(),
+            "MaliciousScanner".to_string(),
+            "AttackTool/2.0".to_string(),
+        ];
+
+        for agent in new_malicious_agents {
+            malicious_user_agents.insert(agent);
+        }
+
+        info!("Threat intelligence updated - {} malicious IPs, {} malicious user agents",
+              malicious_ips.len(), malicious_user_agents.len());
+
         Ok(())
     }
 

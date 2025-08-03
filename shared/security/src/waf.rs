@@ -321,10 +321,34 @@ impl WebApplicationFirewall {
                         });
                     }
                     WafAction::RateLimit { requests_per_minute } => {
-                        // This would integrate with the rate limiter
-                        return Ok(WafDecision::RateLimit {
-                            retry_after: 60,
+                        // Integrate with rate limiter to enforce the limit
+                        let client_ip = request.client_ip.to_string();
+                        let current_time = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs();
+
+                        // Check current request count for this IP
+                        let mut rate_limits = self.rate_limits.write().await;
+                        let rate_limit_entry = rate_limits.entry(client_ip.clone()).or_insert_with(|| RateLimitEntry {
+                            requests: 0,
+                            window_start: current_time,
                         });
+
+                        // Reset window if it's been more than a minute
+                        if current_time - rate_limit_entry.window_start >= 60 {
+                            rate_limit_entry.requests = 0;
+                            rate_limit_entry.window_start = current_time;
+                        }
+
+                        rate_limit_entry.requests += 1;
+
+                        if rate_limit_entry.requests > *requests_per_minute {
+                            let retry_after = 60 - (current_time - rate_limit_entry.window_start);
+                            return Ok(WafDecision::RateLimit {
+                                retry_after: retry_after as u32,
+                            });
+                        }
                     }
                 }
             }

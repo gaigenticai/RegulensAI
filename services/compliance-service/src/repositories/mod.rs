@@ -330,14 +330,72 @@ impl ControlRepository {
 
     /// Get control effectiveness metrics
     pub async fn get_control_effectiveness_metrics(&self) -> Result<ControlEffectivenessMetrics, RegulateAIError> {
-        // Implementation would calculate control metrics from database
+        use sea_orm::*;
+
+        // Get total controls count
+        let total_controls = controls::Entity::find()
+            .count(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to count total controls: {}", e),
+                source: Some(Box::new(e)),
+            })? as u32;
+
+        // Get effective controls count
+        let effective_controls = controls::Entity::find()
+            .filter(controls::Column::EffectivenessRating.eq("effective"))
+            .count(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to count effective controls: {}", e),
+                source: Some(Box::new(e)),
+            })? as u32;
+
+        // Get partially effective controls count
+        let partially_effective_controls = controls::Entity::find()
+            .filter(controls::Column::EffectivenessRating.eq("partially_effective"))
+            .count(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to count partially effective controls: {}", e),
+                source: Some(Box::new(e)),
+            })? as u32;
+
+        // Get ineffective controls count
+        let ineffective_controls = controls::Entity::find()
+            .filter(controls::Column::EffectivenessRating.eq("ineffective"))
+            .count(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to count ineffective controls: {}", e),
+                source: Some(Box::new(e)),
+            })? as u32;
+
+        // Get controls due for testing (next test date is in the past or within 30 days)
+        let thirty_days_from_now = Utc::now() + chrono::Duration::days(30);
+        let controls_due_for_testing = controls::Entity::find()
+            .filter(controls::Column::NextTestDate.lte(thirty_days_from_now))
+            .count(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to count controls due for testing: {}", e),
+                source: Some(Box::new(e)),
+            })? as u32;
+
+        // Calculate effectiveness percentage
+        let effectiveness_percentage = if total_controls > 0 {
+            (effective_controls as f64 / total_controls as f64) * 100.0
+        } else {
+            0.0
+        };
+
         Ok(ControlEffectivenessMetrics {
-            total_controls: 0,
-            effective_controls: 0,
-            partially_effective_controls: 0,
-            ineffective_controls: 0,
-            controls_due_for_testing: 0,
-            effectiveness_percentage: 0.0,
+            total_controls,
+            effective_controls,
+            partially_effective_controls,
+            ineffective_controls,
+            controls_due_for_testing,
+            effectiveness_percentage,
         })
     }
 
@@ -718,8 +776,33 @@ impl RegulatoryRepository {
 
     /// Get regulation requirements
     pub async fn get_regulation_requirements(&self, regulation_id: Uuid) -> Result<Vec<RegulationRequirement>, RegulateAIError> {
-        // Implementation would fetch regulation requirements from database
-        Ok(vec![])
+        use sea_orm::*;
+
+        let requirements = regulation_requirements::Entity::find()
+            .filter(regulation_requirements::Column::RegulationId.eq(regulation_id))
+            .all(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to fetch regulation requirements: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let mut result = Vec::new();
+        for req in requirements {
+            result.push(RegulationRequirement {
+                id: req.id,
+                regulation_id: req.regulation_id,
+                requirement_text: req.requirement_text,
+                category: req.category,
+                priority: req.priority,
+                compliance_deadline: req.compliance_deadline,
+                status: req.status,
+                created_at: req.created_at,
+                updated_at: req.updated_at,
+            });
+        }
+
+        Ok(result)
     }
 
     /// Create regulation mapping
@@ -769,8 +852,33 @@ impl RegulatoryRepository {
 
     /// List regulations
     pub async fn list_regulations(&self) -> Result<Vec<RegulationInfo>, RegulateAIError> {
-        // Implementation would fetch regulations from database
-        Ok(vec![])
+        use sea_orm::*;
+
+        let regulations = regulations::Entity::find()
+            .order_by_asc(regulations::Column::Name)
+            .all(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to fetch regulations: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let mut result = Vec::new();
+        for reg in regulations {
+            result.push(RegulationInfo {
+                id: reg.id,
+                name: reg.name,
+                description: reg.description,
+                jurisdiction: reg.jurisdiction,
+                effective_date: reg.effective_date,
+                status: reg.status,
+                category: reg.category,
+                created_at: reg.created_at,
+                updated_at: reg.updated_at,
+            });
+        }
+
+        Ok(result)
     }
 
     /// Health check

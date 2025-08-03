@@ -114,16 +114,88 @@ impl DatabaseManager {
         let conn = self.connection()?;
         
         info!("Running database migrations");
-        
-        // This would integrate with SeaORM migrations
-        // For now, we'll use a simple approach
-        use sea_orm::Statement;
-        
-        // Check if migrations table exists
-        let check_migrations = conn.execute(Statement::from_string(
+
+        // Integrate with SeaORM migrations system
+        use sea_orm::{Statement, DbErr};
+
+        // Create migrations table if it doesn't exist
+        let create_migrations_table = conn.execute(Statement::from_string(
             sea_orm::DatabaseBackend::Postgres,
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'schema_migrations'".to_string(),
+            r#"
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version VARCHAR(255) PRIMARY KEY,
+                applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )
+            "#.to_string(),
         )).await;
+
+        match create_migrations_table {
+            Ok(_) => info!("Migrations table ready"),
+            Err(e) => {
+                error!("Failed to create migrations table: {}", e);
+                return Err(RegulateAIError::DatabaseError {
+                    message: format!("Failed to create migrations table: {}", e),
+                    source: Some(Box::new(e)),
+                });
+            }
+        }
+
+        // Check which migrations have been applied
+        let applied_migrations = conn.query_all(Statement::from_string(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT version FROM schema_migrations ORDER BY version".to_string(),
+        )).await.map_err(|e| RegulateAIError::DatabaseError {
+            message: format!("Failed to query applied migrations: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let applied_versions: std::collections::HashSet<String> = applied_migrations
+            .into_iter()
+            .map(|row| row.try_get("", "version").unwrap_or_default())
+            .collect();
+
+        // List of available migrations (in production, this would be read from files)
+        let available_migrations = vec![
+            "001_initial_schema",
+            "002_risk_fraud_cyber_ai_schema",
+        ];
+
+        // Apply pending migrations
+        for migration in available_migrations {
+            if !applied_versions.contains(migration) {
+                info!("Applying migration: {}", migration);
+
+                // Read migration file and execute
+                let migration_path = format!("migrations/{}.sql", migration);
+                if let Ok(migration_sql) = std::fs::read_to_string(&migration_path) {
+                    match conn.execute(Statement::from_string(
+                        sea_orm::DatabaseBackend::Postgres,
+                        migration_sql,
+                    )).await {
+                        Ok(_) => {
+                            // Record successful migration
+                            conn.execute(Statement::from_string(
+                                sea_orm::DatabaseBackend::Postgres,
+                                format!("INSERT INTO schema_migrations (version) VALUES ('{}')", migration),
+                            )).await.map_err(|e| RegulateAIError::DatabaseError {
+                                message: format!("Failed to record migration: {}", e),
+                                source: Some(Box::new(e)),
+                            })?;
+                            info!("Migration {} applied successfully", migration);
+                        },
+                        Err(e) => {
+                            error!("Failed to apply migration {}: {}", migration, e);
+                            return Err(RegulateAIError::DatabaseError {
+                                message: format!("Failed to apply migration {}: {}", migration, e),
+                                source: Some(Box::new(e)),
+                            });
+                        }
+                    }
+                } else {
+                    warn!("Migration file not found: {}", migration_path);
+                }
+            }
+        }
 
         if check_migrations.is_err() {
             info!("Creating schema_migrations table");

@@ -222,8 +222,31 @@ impl AIAgentRepository {
     /// Update agent performance metrics
     pub async fn update_performance_metrics(&self, id: Uuid, metrics: AgentPerformanceMetrics) -> Result<(), RegulateAIError> {
         info!("Updating performance metrics for agent: {}", id);
-        
-        // Simplified implementation - would update database in real implementation
+
+        use sea_orm::*;
+
+        // Find the existing agent
+        let existing_agent = crate::entities::ai_agent::Entity::find_by_id(id)
+            .one(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to find AI agent: {}", e)))?
+            .ok_or_else(|| RegulateAIError::NotFound("AI agent not found".to_string()))?;
+
+        // Update the agent with performance metrics
+        let mut agent_model: crate::entities::ai_agent::ActiveModel = existing_agent.into();
+
+        // Store metrics in configuration field as JSON
+        let mut config = serde_json::from_value(agent_model.configuration.clone().unwrap())
+            .unwrap_or_else(|_| serde_json::json!({}));
+        config["performance_metrics"] = serde_json::to_value(&metrics)
+            .map_err(|e| RegulateAIError::SerializationError(format!("Failed to serialize metrics: {}", e)))?;
+
+        agent_model.configuration = Set(config);
+        agent_model.updated_at = Set(Utc::now());
+
+        agent_model.update(&self.db).await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to update agent metrics: {}", e)))?;
+
         Ok(())
     }
 
@@ -533,16 +556,78 @@ impl WorkflowInstanceRepository {
     /// Update workflow instance status
     pub async fn update_status(&self, id: Uuid, status: &str, current_step: Option<String>, updated_by: Uuid) -> Result<WorkflowInstance, RegulateAIError> {
         info!("Updating workflow instance status: {} to {}", id, status);
-        
-        // Simplified implementation - would update database in real implementation
-        Err(RegulateAIError::NotFound("Workflow instance not found".to_string()))
+
+        use sea_orm::*;
+
+        // Find the existing workflow instance
+        let existing_instance = crate::entities::workflow_instance::Entity::find_by_id(id)
+            .one(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to find workflow instance: {}", e)))?
+            .ok_or_else(|| RegulateAIError::NotFound("Workflow instance not found".to_string()))?;
+
+        // Update the workflow instance
+        let mut instance_model: crate::entities::workflow_instance::ActiveModel = existing_instance.into();
+        instance_model.status = Set(status.to_string());
+        if let Some(step) = current_step {
+            instance_model.current_step = Set(Some(step));
+        }
+        instance_model.updated_at = Set(Utc::now());
+        instance_model.updated_by = Set(Some(updated_by));
+
+        // Set completion time if status is completed
+        if status == "completed" {
+            instance_model.completed_at = Set(Some(Utc::now()));
+        }
+
+        let updated_model = instance_model.update(&self.db).await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to update workflow instance: {}", e)))?;
+
+        // Convert back to domain model
+        let updated_instance = WorkflowInstance {
+            id: updated_model.id,
+            template_id: updated_model.template_id,
+            name: updated_model.name,
+            description: updated_model.description,
+            workflow_definition: updated_model.workflow_definition,
+            input_parameters: updated_model.input_parameters,
+            status: updated_model.status,
+            current_step: updated_model.current_step,
+            execution_context: updated_model.execution_context,
+            started_at: updated_model.started_at,
+            completed_at: updated_model.completed_at,
+            created_at: updated_model.created_at,
+            updated_at: updated_model.updated_at,
+            created_by: updated_model.created_by,
+            updated_by: updated_model.updated_by,
+            version: updated_model.version as u32,
+        };
+
+        Ok(updated_instance)
     }
 
     /// Update execution context
     pub async fn update_execution_context(&self, id: Uuid, context: serde_json::Value, updated_by: Uuid) -> Result<(), RegulateAIError> {
         info!("Updating execution context for workflow instance: {}", id);
-        
-        // Simplified implementation - would update database in real implementation
+
+        use sea_orm::*;
+
+        // Find the existing workflow instance
+        let existing_instance = crate::entities::workflow_instance::Entity::find_by_id(id)
+            .one(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to find workflow instance: {}", e)))?
+            .ok_or_else(|| RegulateAIError::NotFound("Workflow instance not found".to_string()))?;
+
+        // Update the execution context
+        let mut instance_model: crate::entities::workflow_instance::ActiveModel = existing_instance.into();
+        instance_model.execution_context = Set(Some(context));
+        instance_model.updated_at = Set(Utc::now());
+        instance_model.updated_by = Set(Some(updated_by));
+
+        instance_model.update(&self.db).await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to update execution context: {}", e)))?;
+
         Ok(())
     }
 
@@ -693,9 +778,44 @@ impl AgentInteractionRepository {
     /// Update interaction with response
     pub async fn update_response(&self, id: Uuid, response_data: serde_json::Value, processing_time_ms: i32) -> Result<AgentInteraction, RegulateAIError> {
         info!("Updating agent interaction response: {}", id);
-        
-        // Simplified implementation - would update database in real implementation
-        Err(RegulateAIError::NotFound("Agent interaction not found".to_string()))
+
+        use sea_orm::*;
+
+        // Find the existing interaction
+        let existing_interaction = crate::entities::agent_interaction::Entity::find_by_id(id)
+            .one(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to find agent interaction: {}", e)))?
+            .ok_or_else(|| RegulateAIError::NotFound("Agent interaction not found".to_string()))?;
+
+        // Update the interaction with response
+        let mut interaction_model: crate::entities::agent_interaction::ActiveModel = existing_interaction.into();
+        interaction_model.response_data = Set(Some(response_data.clone()));
+        interaction_model.processing_time_ms = Set(Some(processing_time_ms));
+        interaction_model.status = Set("completed".to_string());
+        interaction_model.updated_at = Set(Utc::now());
+
+        let updated_model = interaction_model.update(&self.db).await
+            .map_err(|e| RegulateAIError::DatabaseError(format!("Failed to update agent interaction: {}", e)))?;
+
+        // Convert back to domain model
+        let updated_interaction = AgentInteraction {
+            id: updated_model.id,
+            agent_id: updated_model.agent_id,
+            interaction_type: updated_model.interaction_type,
+            request_data: updated_model.request_data,
+            response_data: updated_model.response_data,
+            status: updated_model.status,
+            processing_time_ms: updated_model.processing_time_ms,
+            error_message: updated_model.error_message,
+            workflow_instance_id: updated_model.workflow_instance_id,
+            created_at: updated_model.created_at,
+            updated_at: updated_model.updated_at,
+            created_by: updated_model.created_by,
+            version: updated_model.version as u32,
+        };
+
+        Ok(updated_interaction)
     }
 
     /// Update interaction with error

@@ -753,13 +753,45 @@ pub async fn get_suspicious_activity_report(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // For now, return a placeholder response
+    // Generate comprehensive suspicious activity report
+    let report_period = query.get("period").unwrap_or(&"30".to_string()).parse::<i64>().unwrap_or(30);
+    let start_date = Utc::now() - chrono::Duration::days(report_period);
+
+    // Query suspicious activities from database
+    let suspicious_activities = state.aml_repository
+        .get_suspicious_activities_by_date_range(start_date, Utc::now())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Calculate report metrics
+    let total_activities = suspicious_activities.len();
+    let high_risk_count = suspicious_activities.iter()
+        .filter(|activity| activity.risk_score > 80.0)
+        .count();
+    let medium_risk_count = suspicious_activities.iter()
+        .filter(|activity| activity.risk_score > 50.0 && activity.risk_score <= 80.0)
+        .count();
+
+    // Group by activity type
+    let mut activity_types = std::collections::HashMap::new();
+    for activity in &suspicious_activities {
+        *activity_types.entry(activity.activity_type.clone()).or_insert(0) += 1;
+    }
+
     Ok(Json(serde_json::json!({
         "success": true,
         "data": {
             "report_type": "suspicious_activity",
             "generated_at": chrono::Utc::now(),
-            "summary": "Suspicious activity report functionality not yet implemented"
+            "period_days": report_period,
+            "summary": {
+                "total_activities": total_activities,
+                "high_risk_activities": high_risk_count,
+                "medium_risk_activities": medium_risk_count,
+                "low_risk_activities": total_activities - high_risk_count - medium_risk_count,
+                "activity_types": activity_types
+            },
+            "activities": suspicious_activities.into_iter().take(100).collect::<Vec<_>>() // Limit to 100 for response size
         }
     })))
 }

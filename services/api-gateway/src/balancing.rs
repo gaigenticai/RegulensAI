@@ -249,10 +249,56 @@ impl LoadBalancer {
         if instances.is_empty() {
             return Err(RegulateAIError::ServiceUnavailable("No instances available".to_string()));
         }
-        
-        // For now, just use round-robin among healthy instances
-        // In a real implementation, this would consider health scores, response times, etc.
-        self.round_robin_select(instances).await
+
+        // Score instances based on health metrics and select the best one
+        let mut scored_instances: Vec<(&ServiceInstance, f64)> = Vec::new();
+
+        for instance in instances {
+            let mut score = 100.0; // Start with perfect score
+
+            // Factor in health status
+            match instance.health_status.as_str() {
+                "healthy" => score *= 1.0,
+                "degraded" => score *= 0.7,
+                "unhealthy" => score *= 0.1,
+                _ => score *= 0.5,
+            }
+
+            // Factor in response time (lower is better)
+            if instance.avg_response_time > 0.0 {
+                score *= 1000.0 / (instance.avg_response_time + 100.0); // Normalize response time impact
+            }
+
+            // Factor in current load (lower is better)
+            let connections = self.connections_state.read().await;
+            let current_connections = *connections.get(&instance.id).unwrap_or(&0);
+            if current_connections > 0 {
+                score *= 100.0 / (current_connections as f64 + 10.0); // Normalize connection impact
+            }
+
+            // Factor in CPU usage (lower is better)
+            if instance.cpu_usage > 0.0 {
+                score *= (100.0 - instance.cpu_usage) / 100.0;
+            }
+
+            // Factor in memory usage (lower is better)
+            if instance.memory_usage > 0.0 {
+                score *= (100.0 - instance.memory_usage) / 100.0;
+            }
+
+            scored_instances.push((instance, score));
+        }
+
+        // Sort by score (highest first) and select the best instance
+        scored_instances.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        if let Some((best_instance, score)) = scored_instances.first() {
+            info!("Selected instance {} with health score: {:.2}", best_instance.id, score);
+            Ok(best_instance)
+        } else {
+            // Fallback to round-robin if scoring fails
+            self.round_robin_select(instances).await
+        }
     }
     
     /// Increment connection count for an instance

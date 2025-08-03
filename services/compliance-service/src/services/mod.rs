@@ -518,13 +518,103 @@ impl ReportingService {
 
     /// Get recent compliance activities
     async fn get_recent_compliance_activities(&self) -> Result<Vec<ComplianceActivity>, RegulateAIError> {
-        // Implementation would fetch recent activities from audit logs
-        Ok(vec![])
+        use sea_orm::*;
+
+        // Fetch recent activities from audit logs
+        let recent_logs = audit_logs::Entity::find()
+            .filter(audit_logs::Column::CreatedAt.gte(Utc::now() - chrono::Duration::days(30)))
+            .filter(audit_logs::Column::Category.is_in(vec!["compliance", "policy", "control", "audit"]))
+            .order_by_desc(audit_logs::Column::CreatedAt)
+            .limit(50)
+            .all(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to fetch recent compliance activities: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let mut activities = Vec::new();
+        for log in recent_logs {
+            activities.push(ComplianceActivity {
+                id: log.id,
+                activity_type: log.action,
+                description: log.description.unwrap_or_default(),
+                user_id: log.user_id,
+                timestamp: log.created_at,
+                status: "completed".to_string(),
+                category: log.category.unwrap_or("general".to_string()),
+            });
+        }
+
+        Ok(activities)
     }
 
     /// Get upcoming compliance deadlines
     async fn get_upcoming_compliance_deadlines(&self) -> Result<Vec<ComplianceDeadline>, RegulateAIError> {
-        // Implementation would fetch upcoming deadlines from various sources
-        Ok(vec![])
+        use sea_orm::*;
+
+        let now = Utc::now();
+        let three_months_from_now = now + chrono::Duration::days(90);
+
+        // Fetch upcoming deadlines from various sources
+        let mut deadlines = Vec::new();
+
+        // Get control testing deadlines
+        let control_tests = control_tests::Entity::find()
+            .filter(control_tests::Column::NextTestDate.between(now, three_months_from_now))
+            .all(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to fetch control test deadlines: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        for test in control_tests {
+            deadlines.push(ComplianceDeadline {
+                id: test.id,
+                title: format!("Control Test: {}", test.test_name),
+                description: format!("Testing required for control: {}", test.control_id),
+                due_date: test.next_test_date,
+                priority: match test.test_frequency.as_str() {
+                    "monthly" => "high",
+                    "quarterly" => "medium",
+                    _ => "low",
+                }.to_string(),
+                category: "control_testing".to_string(),
+                responsible_party: test.assigned_to.map(|id| id.to_string()),
+            });
+        }
+
+        // Get audit deadlines
+        let audits = audits::Entity::find()
+            .filter(audits::Column::PlannedEndDate.between(now, three_months_from_now))
+            .filter(audits::Column::Status.ne("completed"))
+            .all(&self.db)
+            .await
+            .map_err(|e| RegulateAIError::DatabaseError {
+                message: format!("Failed to fetch audit deadlines: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        for audit in audits {
+            deadlines.push(ComplianceDeadline {
+                id: audit.id,
+                title: format!("Audit: {}", audit.audit_name),
+                description: audit.description.unwrap_or_default(),
+                due_date: audit.planned_end_date,
+                priority: match audit.audit_type.as_str() {
+                    "regulatory" => "high",
+                    "internal" => "medium",
+                    _ => "low",
+                }.to_string(),
+                category: "audit".to_string(),
+                responsible_party: audit.lead_auditor.map(|id| id.to_string()),
+            });
+        }
+
+        // Sort by due date
+        deadlines.sort_by(|a, b| a.due_date.cmp(&b.due_date));
+
+        Ok(deadlines)
     }
 }

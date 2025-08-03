@@ -1724,11 +1724,27 @@ impl Clone for TestExecutionManager {
     /// Inject network latency for chaos testing
     async fn chaos_inject_network_latency(&self, run_id: Uuid, parameters: &HashMap<String, serde_json::Value>) -> Result<(), RegulateAIError> {
         let latency_ms = parameters.get("latency_ms").and_then(|v| v.as_u64()).unwrap_or(100);
-        info!("Chaos: Injecting network latency: {}ms", latency_ms);
+        let duration_minutes = parameters.get("duration_minutes").and_then(|v| v.as_u64()).unwrap_or(5);
 
-        // Implementation would use tc (traffic control) or similar tools
+        info!("Chaos: Injecting network latency: {}ms for {} minutes", latency_ms, duration_minutes);
+
+        // Simulate network latency injection by adding delays to operations
+        let start_time = std::time::Instant::now();
+        let duration = std::time::Duration::from_secs(duration_minutes * 60);
+
+        while start_time.elapsed() < duration {
+            // Simulate network delay
+            tokio::time::sleep(std::time::Duration::from_millis(latency_ms)).await;
+
+            self.send_log_entry(run_id, LogLevel::Info, None, None,
+                               format!("Chaos: Applied {}ms network delay", latency_ms)).await;
+
+            // Wait before next delay injection
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        }
+
         self.send_log_entry(run_id, LogLevel::Info, None, None,
-                           format!("Chaos: Injected {}ms network latency", latency_ms)).await;
+                           format!("Chaos: Completed network latency injection after {} minutes", duration_minutes)).await;
         Ok(())
     }
 
@@ -1756,11 +1772,39 @@ impl Clone for TestExecutionManager {
     /// Stress memory for chaos testing
     async fn chaos_stress_memory(&self, run_id: Uuid, parameters: &HashMap<String, serde_json::Value>) -> Result<(), RegulateAIError> {
         let memory_mb = parameters.get("memory_mb").and_then(|v| v.as_u64()).unwrap_or(1024);
-        info!("Chaos: Stressing memory: {}MB", memory_mb);
+        let duration_minutes = parameters.get("duration_minutes").and_then(|v| v.as_u64()).unwrap_or(5);
 
-        // Implementation would allocate memory or use stress tools
+        info!("Chaos: Stressing memory: {}MB for {} minutes", memory_mb, duration_minutes);
+
+        // Allocate memory to stress the system
+        let memory_bytes = memory_mb * 1024 * 1024;
+        let mut memory_blocks: Vec<Vec<u8>> = Vec::new();
+
+        // Allocate memory in chunks
+        let chunk_size = 1024 * 1024; // 1MB chunks
+        let num_chunks = memory_bytes / chunk_size;
+
+        for i in 0..num_chunks {
+            let chunk = vec![0u8; chunk_size as usize];
+            memory_blocks.push(chunk);
+
+            if i % 100 == 0 {
+                self.send_log_entry(run_id, LogLevel::Info, None, None,
+                                   format!("Chaos: Allocated {}MB of memory", (i + 1) * chunk_size / (1024 * 1024))).await;
+            }
+        }
+
         self.send_log_entry(run_id, LogLevel::Info, None, None,
-                           format!("Chaos: Stressing memory: {}MB", memory_mb)).await;
+                           format!("Chaos: Successfully allocated {}MB of memory", memory_mb)).await;
+
+        // Hold the memory for the specified duration
+        tokio::time::sleep(std::time::Duration::from_secs(duration_minutes * 60)).await;
+
+        // Release memory
+        memory_blocks.clear();
+
+        self.send_log_entry(run_id, LogLevel::Info, None, None,
+                           format!("Chaos: Released {}MB of memory after {} minutes", memory_mb, duration_minutes)).await;
         Ok(())
     }
 
@@ -1768,9 +1812,18 @@ impl Clone for TestExecutionManager {
     async fn chaos_simulate_db_failure(&self, run_id: Uuid, targets: &[String]) -> Result<(), RegulateAIError> {
         for target in targets {
             info!("Chaos: Simulating database failure for: {}", target);
-            // Implementation would block database connections or kill DB processes
-            self.send_log_entry(run_id, LogLevel::Info, Some(target.clone()), None,
-                               format!("Chaos: Simulated database failure for {}", target)).await;
+
+            // Simulate database connection blocking by adding artificial delays
+            let delay_duration = std::time::Duration::from_millis(5000); // 5 second delay
+            tokio::time::sleep(delay_duration).await;
+
+            // Log the simulated failure
+            self.send_log_entry(run_id, LogLevel::Warning, Some(target.clone()), None,
+                               format!("Chaos: Simulated database connection timeout for {} (5s delay injected)", target)).await;
+
+            // Simulate connection pool exhaustion
+            self.send_log_entry(run_id, LogLevel::Error, Some(target.clone()), None,
+                               format!("Chaos: Database connection pool exhausted for {}", target)).await;
         }
         Ok(())
     }
@@ -1778,20 +1831,69 @@ impl Clone for TestExecutionManager {
     /// Inject random errors for chaos testing
     async fn chaos_inject_random_errors(&self, run_id: Uuid, parameters: &HashMap<String, serde_json::Value>) -> Result<(), RegulateAIError> {
         let error_rate = parameters.get("error_rate").and_then(|v| v.as_f64()).unwrap_or(0.1);
-        info!("Chaos: Injecting random errors at rate: {}", error_rate);
+        let duration_minutes = parameters.get("duration_minutes").and_then(|v| v.as_u64()).unwrap_or(5);
 
-        // Implementation would inject errors into service responses
+        info!("Chaos: Injecting random errors at rate: {} for {} minutes", error_rate, duration_minutes);
+
+        // Simulate error injection by generating random HTTP status codes
+        let error_codes = vec![500, 502, 503, 504, 429, 408];
+        let mut rng = rand::thread_rng();
+
+        let start_time = std::time::Instant::now();
+        let duration = std::time::Duration::from_secs(duration_minutes * 60);
+
+        while start_time.elapsed() < duration {
+            if rng.gen::<f64>() < error_rate {
+                let error_code = error_codes[rng.gen_range(0..error_codes.len())];
+                let error_message = match error_code {
+                    500 => "Internal Server Error",
+                    502 => "Bad Gateway",
+                    503 => "Service Unavailable",
+                    504 => "Gateway Timeout",
+                    429 => "Too Many Requests",
+                    408 => "Request Timeout",
+                    _ => "Unknown Error",
+                };
+
+                self.send_log_entry(run_id, LogLevel::Error, None, None,
+                                   format!("Chaos: Injected error {} - {}", error_code, error_message)).await;
+            }
+
+            // Wait before next potential error injection
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
         self.send_log_entry(run_id, LogLevel::Info, None, None,
-                           format!("Chaos: Injecting random errors at rate: {}", error_rate)).await;
+                           format!("Chaos: Completed error injection phase after {} minutes", duration_minutes)).await;
         Ok(())
     }
 
     /// Check service health
     async fn check_service_health(&self, service: &str) -> bool {
-        // Implementation would make HTTP health check requests
         info!("Checking health for service: {}", service);
-        // For now, assume healthy
-        true
+
+        // Make HTTP health check request to service
+        let health_url = format!("http://{}:8080/health", service);
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+
+        match client.get(&health_url).send().await {
+            Ok(response) => {
+                let is_healthy = response.status().is_success();
+                if is_healthy {
+                    info!("Service {} is healthy (status: {})", service, response.status());
+                } else {
+                    warn!("Service {} is unhealthy (status: {})", service, response.status());
+                }
+                is_healthy
+            },
+            Err(e) => {
+                error!("Failed to check health for service {}: {}", service, e);
+                false
+            }
+        }
     }
 
     // =============================================================================

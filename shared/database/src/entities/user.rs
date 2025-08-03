@@ -189,10 +189,108 @@ impl Model {
         self.last_login_at = Some(Utc::now());
     }
     
-    /// Check if user has a specific permission (simplified - would integrate with RBAC)
-    pub fn has_permission(&self, _permission: &str) -> bool {
-        // This would be implemented with proper RBAC integration
-        self.is_active && !self.is_locked()
+    /// Check if user has a specific permission using RBAC integration
+    pub fn has_permission(&self, permission: &str) -> bool {
+        // Check if user is active and not locked
+        if !self.is_active || self.is_locked() {
+            return false;
+        }
+
+        // Admin users have all permissions
+        if self.role == "admin" || self.role == "super_admin" {
+            return true;
+        }
+
+        // Role-based permission mapping
+        let role_permissions = match self.role.as_str() {
+            "compliance_officer" => vec![
+                "compliance:read", "compliance:write", "policies:read", "policies:write",
+                "controls:read", "controls:write", "audits:read", "audits:write"
+            ],
+            "risk_manager" => vec![
+                "risk:read", "risk:write", "assessments:read", "assessments:write",
+                "kri:read", "kri:write", "stress_tests:read", "stress_tests:write"
+            ],
+            "fraud_analyst" => vec![
+                "fraud:read", "fraud:write", "transactions:read", "alerts:read",
+                "ml_models:read", "investigations:read", "investigations:write"
+            ],
+            "security_analyst" => vec![
+                "security:read", "security:write", "incidents:read", "incidents:write",
+                "vulnerabilities:read", "vulnerabilities:write", "threats:read"
+            ],
+            "aml_officer" => vec![
+                "aml:read", "aml:write", "kyc:read", "kyc:write", "sanctions:read",
+                "alerts:read", "alerts:write", "customers:read"
+            ],
+            "auditor" => vec![
+                "audits:read", "controls:read", "policies:read", "assessments:read",
+                "reports:read", "evidence:read"
+            ],
+            "analyst" => vec![
+                "reports:read", "dashboards:read", "metrics:read", "data:read"
+            ],
+            "user" => vec![
+                "profile:read", "profile:write", "dashboards:read"
+            ],
+            _ => vec![]
+        };
+
+        // Check if the requested permission is in the role's permissions
+        role_permissions.contains(&permission)
+    }
+
+    /// Check if user is currently locked
+    pub fn is_locked(&self) -> bool {
+        if let Some(locked_until) = self.locked_until {
+            locked_until > Utc::now()
+        } else {
+            false
+        }
+    }
+
+    /// Get user's effective permissions based on role
+    pub fn get_permissions(&self) -> Vec<String> {
+        if !self.is_active || self.is_locked() {
+            return vec![];
+        }
+
+        let permissions = match self.role.as_str() {
+            "admin" | "super_admin" => vec!["*".to_string()], // All permissions
+            "compliance_officer" => vec![
+                "compliance:read", "compliance:write", "policies:read", "policies:write",
+                "controls:read", "controls:write", "audits:read", "audits:write"
+            ].into_iter().map(String::from).collect(),
+            "risk_manager" => vec![
+                "risk:read", "risk:write", "assessments:read", "assessments:write",
+                "kri:read", "kri:write", "stress_tests:read", "stress_tests:write"
+            ].into_iter().map(String::from).collect(),
+            "fraud_analyst" => vec![
+                "fraud:read", "fraud:write", "transactions:read", "alerts:read",
+                "ml_models:read", "investigations:read", "investigations:write"
+            ].into_iter().map(String::from).collect(),
+            "security_analyst" => vec![
+                "security:read", "security:write", "incidents:read", "incidents:write",
+                "vulnerabilities:read", "vulnerabilities:write", "threats:read"
+            ].into_iter().map(String::from).collect(),
+            "aml_officer" => vec![
+                "aml:read", "aml:write", "kyc:read", "kyc:write", "sanctions:read",
+                "alerts:read", "alerts:write", "customers:read"
+            ].into_iter().map(String::from).collect(),
+            "auditor" => vec![
+                "audits:read", "controls:read", "policies:read", "assessments:read",
+                "reports:read", "evidence:read"
+            ].into_iter().map(String::from).collect(),
+            "analyst" => vec![
+                "reports:read", "dashboards:read", "metrics:read", "data:read"
+            ].into_iter().map(String::from).collect(),
+            "user" => vec![
+                "profile:read", "profile:write", "dashboards:read"
+            ].into_iter().map(String::from).collect(),
+            _ => vec![]
+        };
+
+        permissionsself.is_locked()
     }
 }
 

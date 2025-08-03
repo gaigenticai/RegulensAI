@@ -185,9 +185,15 @@ pub async fn update_policy(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // For now, return not implemented
-    // In a full implementation, this would update the policy
-    Err(StatusCode::NOT_IMPLEMENTED)
+    // Update the policy using the repository
+    match state.policy_repository.update_policy(policy_id, request, auth.user_id).await {
+        Ok(updated_policy) => Ok(Json(ApiResponse::success(updated_policy))),
+        Err(RegulateAIError::NotFound(_)) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to update policy: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 /// Delete policy
@@ -545,9 +551,15 @@ pub async fn get_audit_findings(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // For now, return empty findings
-    // In a full implementation, this would fetch findings from the repository
-    Ok(Json(ApiResponse::success(vec![])))
+    // Fetch findings from the repository
+    match state.audit_repository.get_audit_findings(audit_id).await {
+        Ok(findings) => Ok(Json(ApiResponse::success(findings))),
+        Err(RegulateAIError::NotFound(_)) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get audit findings: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 /// Create audit finding
@@ -926,15 +938,21 @@ pub async fn get_audit_summary_report(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // For now, return sample metrics
-    // In a full implementation, this would generate the actual report
-    let metrics = AuditStatusMetrics {
-        total_audits: 0,
-        completed_audits: 0,
-        in_progress_audits: 0,
-        planned_audits: 0,
-        open_findings: 0,
-        critical_findings: 0,
+    // Generate actual audit summary report from database
+    let metrics = match state.audit_repository.get_audit_status_metrics().await {
+        Ok(metrics) => metrics,
+        Err(e) => {
+            error!("Failed to get audit status metrics: {}", e);
+            // Return default metrics if database query fails
+            AuditStatusMetrics {
+                total_audits: 0,
+                completed_audits: 0,
+                in_progress_audits: 0,
+                planned_audits: 0,
+                open_findings: 0,
+                critical_findings: 0,
+            }
+        }
     };
 
     Ok(Json(ApiResponse::success(metrics)))
@@ -980,9 +998,14 @@ pub async fn list_workflows(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // For now, return empty workflows
-    // In a full implementation, this would fetch workflows from the repository
-    Ok(Json(ApiResponse::success(vec![])))
+    // Fetch workflows from the repository
+    match state.workflow_repository.list_workflows().await {
+        Ok(workflows) => Ok(Json(ApiResponse::success(workflows))),
+        Err(e) => {
+            error!("Failed to list workflows: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 /// Execute workflow
