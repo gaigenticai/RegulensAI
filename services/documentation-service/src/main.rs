@@ -118,6 +118,8 @@ fn create_router(state: AppState) -> Router {
         
         // Main documentation interface
         .route("/", get(documentation_home))
+        .route("/user-guide", get(user_guide_home))
+        .route("/user-guide/:module", get(user_guide_module))
         .route("/features", get(list_features))
         .route("/features/:feature_name", get(get_feature_documentation))
         .route("/api-reference", get(api_reference))

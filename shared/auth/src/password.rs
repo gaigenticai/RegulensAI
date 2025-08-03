@@ -302,11 +302,51 @@ impl PasswordHasher {
         score.min(100)
     }
 
-    /// Check if password has been compromised (placeholder for breach database integration)
-    pub async fn is_password_compromised(&self, _password: &str) -> Result<bool, RegulateAIError> {
-        // In a real implementation, this would check against databases like HaveIBeenPwned
-        // For now, return false as a placeholder
-        Ok(false)
+    /// Check if password has been compromised using SHA-1 hash prefix
+    pub async fn is_password_compromised(&self, password: &str) -> Result<bool, RegulateAIError> {
+        use sha1::{Sha1, Digest};
+        use reqwest;
+
+        // Create SHA-1 hash of the password
+        let mut hasher = Sha1::new();
+        hasher.update(password.as_bytes());
+        let hash = hasher.finalize();
+        let hash_hex = format!("{:x}", hash).to_uppercase();
+
+        // Use k-anonymity model - send only first 5 characters of hash
+        let prefix = &hash_hex[..5];
+        let suffix = &hash_hex[5..];
+
+        // Query HaveIBeenPwned API with hash prefix
+        let url = format!("https://api.pwnedpasswords.com/range/{}", prefix);
+
+        match reqwest::get(&url).await {
+            Ok(response) => {
+                if response.status().is_success() {
+                    let body = response.text().await
+                        .map_err(|e| RegulateAIError::ExternalServiceError(format!("Failed to read response: {}", e)))?;
+
+                    // Check if our hash suffix appears in the response
+                    for line in body.lines() {
+                        if let Some((hash_suffix, _count)) = line.split_once(':') {
+                            if hash_suffix == suffix {
+                                return Ok(true); // Password is compromised
+                            }
+                        }
+                    }
+                    Ok(false) // Password not found in breach database
+                } else {
+                    // If API is unavailable, err on the side of caution but don't block
+                    warn!("HaveIBeenPwned API unavailable, status: {}", response.status());
+                    Ok(false)
+                }
+            }
+            Err(e) => {
+                // Network error - log but don't block password validation
+                warn!("Failed to check password against breach database: {}", e);
+                Ok(false)
+            }
+        }
     }
 }
 

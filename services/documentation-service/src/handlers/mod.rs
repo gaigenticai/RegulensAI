@@ -794,3 +794,497 @@ async fn update_content_from_source() -> Result<(), RegulateAIError> {
     // Implementation for updating documentation content
     Ok(())
 }
+
+/// User guide home page handler
+pub async fn user_guide_home(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<Html<String>, StatusCode> {
+    info!("Serving user guide home page for user: {}", auth.user_id);
+
+    let template_data = UserGuideHomeData {
+        user: auth,
+        modules: get_available_modules().await,
+        quick_start_guides: get_quick_start_guides().await,
+        search_enabled: true,
+        recent_updates: get_recent_guide_updates().await,
+    };
+
+    match render_user_guide_home(&template_data) {
+        Ok(html) => Ok(Html(html)),
+        Err(e) => {
+            error!("Failed to render user guide home: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+/// User guide module-specific page handler
+pub async fn user_guide_module(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
+    Path(module): Path<String>,
+) -> Result<Html<String>, StatusCode> {
+    info!("Serving user guide for module: {} by user: {}", module, auth.user_id);
+
+    let module_data = match get_module_guide_data(&module).await {
+        Ok(data) => data,
+        Err(_) => return Err(StatusCode::NOT_FOUND),
+    };
+
+    let template_data = UserGuideModuleData {
+        user: auth,
+        module: module_data,
+        workflows: get_module_workflows(&module).await,
+        field_references: get_module_field_references(&module).await,
+        examples: get_module_examples(&module).await,
+        troubleshooting: get_module_troubleshooting(&module).await,
+    };
+
+    match render_user_guide_module(&template_data) {
+        Ok(html) => Ok(Html(html)),
+        Err(e) => {
+            error!("Failed to render user guide module: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// Helper functions for user guide data
+
+/// Get available modules for user guide
+async fn get_available_modules() -> Vec<ModuleInfo> {
+    vec![
+        ModuleInfo {
+            id: "aml-kyc".to_string(),
+            name: "AML/KYC Module".to_string(),
+            description: "Anti-Money Laundering and Know Your Customer verification workflows".to_string(),
+            icon: "fas fa-user-check".to_string(),
+            url: "/user-guide/aml-kyc".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["aml_analyst".to_string(), "compliance_officer".to_string()],
+        },
+        ModuleInfo {
+            id: "fraud-detection".to_string(),
+            name: "Fraud Detection".to_string(),
+            description: "Real-time fraud detection and prevention system".to_string(),
+            icon: "fas fa-shield-alt".to_string(),
+            url: "/user-guide/fraud-detection".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["fraud_investigator".to_string(), "security_analyst".to_string()],
+        },
+        ModuleInfo {
+            id: "risk-management".to_string(),
+            name: "Risk Management".to_string(),
+            description: "Comprehensive risk assessment and monitoring tools".to_string(),
+            icon: "fas fa-chart-line".to_string(),
+            url: "/user-guide/risk-management".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["risk_manager".to_string(), "compliance_officer".to_string()],
+        },
+        ModuleInfo {
+            id: "compliance".to_string(),
+            name: "Compliance Management".to_string(),
+            description: "Policy management and regulatory compliance tracking".to_string(),
+            icon: "fas fa-clipboard-check".to_string(),
+            url: "/user-guide/compliance".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["compliance_officer".to_string(), "legal_counsel".to_string()],
+        },
+        ModuleInfo {
+            id: "cybersecurity".to_string(),
+            name: "Cybersecurity".to_string(),
+            description: "Vulnerability assessment and security monitoring".to_string(),
+            icon: "fas fa-lock".to_string(),
+            url: "/user-guide/cybersecurity".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["security_analyst".to_string(), "system_admin".to_string()],
+        },
+        ModuleInfo {
+            id: "ai-orchestration".to_string(),
+            name: "AI Orchestration".to_string(),
+            description: "AI-powered regulatory Q&A and automation".to_string(),
+            icon: "fas fa-robot".to_string(),
+            url: "/user-guide/ai-orchestration".to_string(),
+            status: "Active".to_string(),
+            required_roles: vec!["compliance_officer".to_string(), "risk_manager".to_string()],
+        },
+    ]
+}
+
+/// Get quick start guides
+async fn get_quick_start_guides() -> Vec<QuickStartGuide> {
+    vec![
+        QuickStartGuide {
+            id: "first-login".to_string(),
+            title: "First Time Login".to_string(),
+            description: "Complete your first login and setup your profile".to_string(),
+            estimated_time: 10,
+            steps: vec![
+                GuideStep {
+                    step_number: 1,
+                    title: "Access the Platform".to_string(),
+                    content: "Navigate to the RegulateAI platform URL and enter your credentials".to_string(),
+                    code_examples: vec![],
+                    related_links: vec![],
+                },
+                GuideStep {
+                    step_number: 2,
+                    title: "Complete Profile Setup".to_string(),
+                    content: "Fill in your profile information and set notification preferences".to_string(),
+                    code_examples: vec![],
+                    related_links: vec![],
+                },
+            ],
+            required_role: "any".to_string(),
+        },
+        QuickStartGuide {
+            id: "customer-onboarding".to_string(),
+            title: "Customer Onboarding".to_string(),
+            description: "Learn how to onboard a new customer with KYC verification".to_string(),
+            estimated_time: 15,
+            steps: vec![
+                GuideStep {
+                    step_number: 1,
+                    title: "Navigate to AML Module".to_string(),
+                    content: "Access the AML/KYC module from the main navigation".to_string(),
+                    code_examples: vec![],
+                    related_links: vec![],
+                },
+                GuideStep {
+                    step_number: 2,
+                    title: "Start Customer Verification".to_string(),
+                    content: "Click 'New Customer Verification' and select customer type".to_string(),
+                    code_examples: vec![],
+                    related_links: vec![],
+                },
+            ],
+            required_role: "aml_analyst".to_string(),
+        },
+    ]
+}
+
+/// Get recent guide updates
+async fn get_recent_guide_updates() -> Vec<GuideUpdate> {
+    vec![
+        GuideUpdate {
+            title: "Enhanced Fraud Detection Workflows".to_string(),
+            description: "Updated fraud detection module with new ML models and investigation workflows".to_string(),
+            updated_at: chrono::Utc::now() - chrono::Duration::days(2),
+            module: "fraud-detection".to_string(),
+            update_type: "Feature Enhancement".to_string(),
+        },
+        GuideUpdate {
+            title: "New Risk Assessment Templates".to_string(),
+            description: "Added pre-built risk assessment templates for common scenarios".to_string(),
+            updated_at: chrono::Utc::now() - chrono::Duration::days(5),
+            module: "risk-management".to_string(),
+            update_type: "New Feature".to_string(),
+        },
+    ]
+}
+
+/// Get module guide data
+async fn get_module_guide_data(module: &str) -> Result<ModuleGuideData, RegulateAIError> {
+    match module {
+        "aml-kyc" => Ok(ModuleGuideData {
+            id: "aml-kyc".to_string(),
+            name: "AML/KYC Module".to_string(),
+            description: "Comprehensive Anti-Money Laundering and Know Your Customer verification system".to_string(),
+            overview: "The AML/KYC module provides complete customer onboarding workflows, transaction monitoring, sanctions screening, and regulatory reporting capabilities.".to_string(),
+            getting_started: "Begin by navigating to the AML module and selecting 'New Customer Verification' to start the onboarding process.".to_string(),
+            key_features: vec![
+                "Customer identity verification".to_string(),
+                "Document verification with OCR".to_string(),
+                "Real-time sanctions screening".to_string(),
+                "Transaction monitoring and alerts".to_string(),
+                "Suspicious activity reporting (SAR)".to_string(),
+                "Case management and investigation".to_string(),
+            ],
+            prerequisites: vec![
+                "Valid user account with AML analyst role".to_string(),
+                "Access to customer data sources".to_string(),
+                "Understanding of AML regulations".to_string(),
+            ],
+        }),
+        "fraud-detection" => Ok(ModuleGuideData {
+            id: "fraud-detection".to_string(),
+            name: "Fraud Detection Module".to_string(),
+            description: "Advanced machine learning-powered fraud detection and prevention system".to_string(),
+            overview: "The Fraud Detection module uses advanced ML algorithms to detect fraudulent transactions in real-time, providing investigation tools and case management capabilities.".to_string(),
+            getting_started: "Access the fraud detection dashboard to view real-time alerts and begin investigating suspicious transactions.".to_string(),
+            key_features: vec![
+                "Real-time transaction analysis".to_string(),
+                "Machine learning fraud models".to_string(),
+                "Behavioral analytics".to_string(),
+                "Investigation workflows".to_string(),
+                "False positive management".to_string(),
+                "Performance analytics".to_string(),
+            ],
+            prerequisites: vec![
+                "Fraud investigator role access".to_string(),
+                "Understanding of fraud patterns".to_string(),
+                "Transaction data access".to_string(),
+            ],
+        }),
+        "risk-management" => Ok(ModuleGuideData {
+            id: "risk-management".to_string(),
+            name: "Risk Management Module".to_string(),
+            description: "Comprehensive enterprise risk assessment and monitoring platform".to_string(),
+            overview: "The Risk Management module provides tools for risk identification, assessment, monitoring, and reporting with advanced analytics and simulation capabilities.".to_string(),
+            getting_started: "Create your first risk assessment by navigating to Risk Management and selecting 'New Risk Assessment'.".to_string(),
+            key_features: vec![
+                "Risk assessment creation".to_string(),
+                "Monte Carlo simulations".to_string(),
+                "Key Risk Indicator (KRI) monitoring".to_string(),
+                "Stress testing scenarios".to_string(),
+                "Risk reporting and dashboards".to_string(),
+                "Control effectiveness tracking".to_string(),
+            ],
+            prerequisites: vec![
+                "Risk manager role access".to_string(),
+                "Understanding of risk management principles".to_string(),
+                "Access to relevant business data".to_string(),
+            ],
+        }),
+        "compliance" => Ok(ModuleGuideData {
+            id: "compliance".to_string(),
+            name: "Compliance Management Module".to_string(),
+            description: "Policy management and regulatory compliance tracking system".to_string(),
+            overview: "The Compliance module manages organizational policies, tracks regulatory obligations, and provides comprehensive compliance monitoring and reporting.".to_string(),
+            getting_started: "Begin by reviewing existing policies or creating new ones using the policy management interface.".to_string(),
+            key_features: vec![
+                "Policy lifecycle management".to_string(),
+                "Regulatory obligation tracking".to_string(),
+                "Compliance monitoring".to_string(),
+                "Audit trail management".to_string(),
+                "Regulatory reporting".to_string(),
+                "Third-party risk management".to_string(),
+            ],
+            prerequisites: vec![
+                "Compliance officer role access".to_string(),
+                "Knowledge of applicable regulations".to_string(),
+                "Understanding of organizational policies".to_string(),
+            ],
+        }),
+        "cybersecurity" => Ok(ModuleGuideData {
+            id: "cybersecurity".to_string(),
+            name: "Cybersecurity Module".to_string(),
+            description: "Comprehensive cybersecurity assessment and monitoring platform".to_string(),
+            overview: "The Cybersecurity module provides vulnerability assessment, security monitoring, incident management, and compliance tracking capabilities.".to_string(),
+            getting_started: "Start with a vulnerability assessment by navigating to the Cybersecurity module and selecting 'New Assessment'.".to_string(),
+            key_features: vec![
+                "Vulnerability assessments".to_string(),
+                "Security monitoring".to_string(),
+                "Incident response management".to_string(),
+                "Compliance tracking".to_string(),
+                "Threat intelligence integration".to_string(),
+                "Security metrics and reporting".to_string(),
+            ],
+            prerequisites: vec![
+                "Security analyst role access".to_string(),
+                "Understanding of cybersecurity principles".to_string(),
+                "Access to system and network data".to_string(),
+            ],
+        }),
+        "ai-orchestration" => Ok(ModuleGuideData {
+            id: "ai-orchestration".to_string(),
+            name: "AI Orchestration Module".to_string(),
+            description: "AI-powered regulatory assistance and automation platform".to_string(),
+            overview: "The AI Orchestration module provides intelligent regulatory Q&A, requirement mapping, and automated compliance assistance using advanced AI models.".to_string(),
+            getting_started: "Ask your first regulatory question using the Q&A interface to experience AI-powered compliance assistance.".to_string(),
+            key_features: vec![
+                "Regulatory Q&A system".to_string(),
+                "Requirement-to-control mapping".to_string(),
+                "Automated compliance recommendations".to_string(),
+                "Context-aware search".to_string(),
+                "Multi-jurisdiction support".to_string(),
+                "Natural language processing".to_string(),
+            ],
+            prerequisites: vec![
+                "Compliance officer or risk manager role".to_string(),
+                "Understanding of regulatory frameworks".to_string(),
+                "Basic knowledge of AI capabilities".to_string(),
+            ],
+        }),
+        _ => Err(RegulateAIError::NotFound(format!("Module '{}' not found", module))),
+    }
+}
+
+/// Get module workflows
+async fn get_module_workflows(module: &str) -> Vec<WorkflowGuide> {
+    match module {
+        "aml-kyc" => vec![
+            WorkflowGuide {
+                id: "customer-onboarding".to_string(),
+                title: "Customer Onboarding Workflow".to_string(),
+                description: "Complete workflow for onboarding new customers with KYC verification".to_string(),
+                steps: vec![
+                    WorkflowStep {
+                        step_number: 1,
+                        title: "Initiate KYC Process".to_string(),
+                        description: "Start the customer verification process".to_string(),
+                        instructions: "Navigate to AML Module → Customer Onboarding → New Customer Verification".to_string(),
+                        screenshot_url: Some("/static/images/kyc-step1.png".to_string()),
+                        tips: vec!["Ensure you have all required customer documents before starting".to_string()],
+                        expected_outcome: "KYC verification process initiated with unique case ID".to_string(),
+                    },
+                    WorkflowStep {
+                        step_number: 2,
+                        title: "Enter Customer Information".to_string(),
+                        description: "Input basic customer details and select verification type".to_string(),
+                        instructions: "Fill in customer name, date of birth, nationality, and select Individual/Corporate".to_string(),
+                        screenshot_url: Some("/static/images/kyc-step2.png".to_string()),
+                        tips: vec![
+                            "Use exact names as they appear on government-issued ID".to_string(),
+                            "Double-check date format (YYYY-MM-DD)".to_string(),
+                        ],
+                        expected_outcome: "Customer profile created with basic information".to_string(),
+                    },
+                    WorkflowStep {
+                        step_number: 3,
+                        title: "Document Upload and Verification".to_string(),
+                        description: "Upload and verify customer identification documents".to_string(),
+                        instructions: "Upload government-issued ID, proof of address, and any additional required documents".to_string(),
+                        screenshot_url: Some("/static/images/kyc-step3.png".to_string()),
+                        tips: vec![
+                            "Ensure documents are clear and all corners are visible".to_string(),
+                            "Accepted formats: PDF, JPG, PNG (max 10MB)".to_string(),
+                        ],
+                        expected_outcome: "Documents uploaded and OCR extraction completed".to_string(),
+                    },
+                ],
+                estimated_time: 20,
+                required_permissions: vec!["aml_analyst".to_string(), "kyc_verification".to_string()],
+            },
+        ],
+        "fraud-detection" => vec![
+            WorkflowGuide {
+                id: "fraud-investigation".to_string(),
+                title: "Fraud Alert Investigation".to_string(),
+                description: "Step-by-step process for investigating fraud alerts".to_string(),
+                steps: vec![
+                    WorkflowStep {
+                        step_number: 1,
+                        title: "Review Alert Details".to_string(),
+                        description: "Examine the fraud alert and associated transaction data".to_string(),
+                        instructions: "Click on the alert from the queue and review risk factors, transaction details, and customer history".to_string(),
+                        screenshot_url: Some("/static/images/fraud-step1.png".to_string()),
+                        tips: vec!["Pay attention to risk score and triggering rules".to_string()],
+                        expected_outcome: "Understanding of alert context and risk factors".to_string(),
+                    },
+                ],
+                estimated_time: 15,
+                required_permissions: vec!["fraud_investigator".to_string()],
+            },
+        ],
+        _ => vec![],
+    }
+}
+
+/// Get module field references
+async fn get_module_field_references(module: &str) -> Vec<FieldReference> {
+    match module {
+        "aml-kyc" => vec![
+            FieldReference {
+                field_name: "first_name".to_string(),
+                field_type: "String".to_string(),
+                description: "Customer's legal first name as it appears on government-issued identification".to_string(),
+                required: true,
+                validation_rules: vec![
+                    "Maximum 100 characters".to_string(),
+                    "Letters and spaces only".to_string(),
+                    "Cannot be empty".to_string(),
+                ],
+                example_values: vec!["John".to_string(), "Mary Jane".to_string(), "José".to_string()],
+                related_fields: vec!["last_name".to_string(), "full_name".to_string()],
+            },
+            FieldReference {
+                field_name: "date_of_birth".to_string(),
+                field_type: "Date".to_string(),
+                description: "Customer's date of birth used for age verification and risk assessment".to_string(),
+                required: true,
+                validation_rules: vec![
+                    "Format: YYYY-MM-DD".to_string(),
+                    "Must be 18+ years ago".to_string(),
+                    "Cannot be future date".to_string(),
+                ],
+                example_values: vec!["1985-03-15".to_string(), "1990-12-01".to_string()],
+                related_fields: vec!["age".to_string(), "risk_rating".to_string()],
+            },
+            FieldReference {
+                field_name: "risk_rating".to_string(),
+                field_type: "Enum".to_string(),
+                description: "Calculated customer risk level based on multiple factors".to_string(),
+                required: false,
+                validation_rules: vec![
+                    "Values: LOW, MEDIUM, HIGH, VERY_HIGH".to_string(),
+                    "Auto-calculated by system".to_string(),
+                ],
+                example_values: vec!["LOW".to_string(), "MEDIUM".to_string(), "HIGH".to_string()],
+                related_fields: vec!["kyc_status".to_string(), "enhanced_dd_required".to_string()],
+            },
+        ],
+        _ => vec![],
+    }
+}
+
+/// Get module examples
+async fn get_module_examples(module: &str) -> Vec<UsageExample> {
+    match module {
+        "aml-kyc" => vec![
+            UsageExample {
+                title: "Customer Onboarding API Call".to_string(),
+                description: "Example API request for initiating customer KYC verification".to_string(),
+                code: r#"{
+  "customer_type": "INDIVIDUAL",
+  "first_name": "John",
+  "last_name": "Smith",
+  "date_of_birth": "1985-03-15",
+  "nationality": "USA",
+  "id_document_type": "PASSPORT",
+  "id_document_number": "123456789"
+}"#.to_string(),
+                language: "json".to_string(),
+                expected_output: Some(r#"{
+  "customer_id": "uuid-here",
+  "kyc_status": "PENDING",
+  "verification_id": "verification-uuid"
+}"#.to_string()),
+                notes: vec![
+                    "All fields are required for individual customers".to_string(),
+                    "Document number must match uploaded document".to_string(),
+                ],
+            },
+        ],
+        _ => vec![],
+    }
+}
+
+/// Get module troubleshooting
+async fn get_module_troubleshooting(module: &str) -> Vec<TroubleshootingItem> {
+    match module {
+        "aml-kyc" => vec![
+            TroubleshootingItem {
+                title: "KYC Verification Stuck in Pending Status".to_string(),
+                description: "Customer verification remains in PENDING status for extended period".to_string(),
+                causes: vec![
+                    "Missing required documents".to_string(),
+                    "Poor document quality preventing OCR".to_string(),
+                    "Manual review required due to high risk score".to_string(),
+                ],
+                solutions: vec![
+                    "Check document upload status and quality".to_string(),
+                    "Verify all required fields are completed".to_string(),
+                    "Contact supervisor for manual review approval".to_string(),
+                ],
+                related_links: vec![
+                    "/user-guide/aml-kyc#document-requirements".to_string(),
+                    "/user-guide/aml-kyc#manual-review-process".to_string(),
+                ],
+                severity: "Medium".to_string(),
+            },
+        ],
+        _ => vec![],
+    }
+}

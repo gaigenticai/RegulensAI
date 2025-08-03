@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}RegulateAI User Guide - Complete Documentation{% endblock %}
+
+{% block description %}Comprehensive web-based user guide for RegulateAI platform with searchable documentation, step-by-step workflows, and field references{% endblock %}
+
+{% block extra_head %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 4rem 0;
+        margin-bottom: 2rem;
+    }
+    .module-card {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: none;
+        border-radius: 15px;
+        overflow: hidden;
+        height: 100%;
+    }
+    .module-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    }
+    .module-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #667eea;
+    }
+    .quick-start-card {
+        background: #f8f9fa;
+        border-left: 4px solid #28a745;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .search-section {
+        background: #f8f9fa;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-bottom: 2rem;
+    }
+    .stats-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    }
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+    .recent-update {
+        border-left: 3px solid #17a2b8;
+        padding-left: 1rem;
+        margin-bottom: 1rem;
+    }
+    .breadcrumb-custom {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+    .feature-highlight {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h1 class="display-4 mb-4">
+                    <i class="fas fa-book-open me-3"></i>
+                    RegulateAI User Guide
+                </h1>
+                <p class="lead mb-4">
+                    Your comprehensive guide to mastering the RegulateAI enterprise compliance platform. 
+                    Find step-by-step instructions, field references, troubleshooting guides, and best practices.
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="#quick-start" class="btn btn-light btn-lg">
+                        <i class="fas fa-rocket me-2"></i>Quick Start
+                    </a>
+                    <a href="#modules" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-th-large me-2"></i>Browse Modules
+                    </a>
+                    <a href="#search-guide" class="btn btn-outline-light btn-lg">
+                        <i class="fas fa-search me-2"></i>Search Guide
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center">
+                <div class="stats-card">
+                    <div class="stats-number">{{ modules | length }}</div>
+                    <div>Active Modules</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Section -->
+<div class="container">
+    <div class="search-section" id="search-guide">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h2 class="mb-4">
+                    <i class="fas fa-search me-2"></i>
+                    Search the User Guide
+                </h2>
+                <p class="mb-4">Find exactly what you need with our powerful search functionality</p>
+                
+                <form action="/search" method="GET" class="mb-4">
+                    <div class="input-group input-group-lg">
+                        <input type="text" class="form-control" name="q" placeholder="Search for workflows, fields, troubleshooting..." aria-label="Search">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="row text-start">
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-lightbulb me-2"></i>Search Tips:</h6>
+                        <ul class="list-unstyled">
+                            <li>• Use specific terms like "KYC workflow"</li>
+                            <li>• Search by field names like "risk_rating"</li>
+                            <li>• Try error messages for troubleshooting</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-filter me-2"></i>Filter by:</h6>
+                        <ul class="list-unstyled">
+                            <li>• Module (AML, Fraud, Risk, etc.)</li>
+                            <li>• Content type (Workflow, Field, API)</li>
+                            <li>• User role (Analyst, Manager, Admin)</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><i class="fas fa-star me-2"></i>Popular Searches:</h6>
+                        <ul class="list-unstyled">
+                            <li><a href="/search?q=customer+onboarding">Customer onboarding</a></li>
+                            <li><a href="/search?q=fraud+alert">Fraud alerts</a></li>
+                            <li><a href="/search?q=risk+assessment">Risk assessment</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Start Section -->
+    <section id="quick-start" class="mb-5">
+        <h2 class="mb-4">
+            <i class="fas fa-rocket me-2"></i>
+            Quick Start Guides
+        </h2>
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="quick-start-card">
+                    <h4><i class="fas fa-user-plus me-2"></i>First Time Login</h4>
+                    <p>Complete your initial setup and learn the platform basics</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-success">10 minutes</span>
+                        <a href="/user-guide/getting-started" class="btn btn-sm btn-primary">Start Guide</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="quick-start-card">
+                    <h4><i class="fas fa-user-check me-2"></i>Customer Onboarding</h4>
+                    <p>Learn how to onboard customers with KYC verification</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-info">15 minutes</span>
+                        <a href="/user-guide/aml-kyc#customer-onboarding" class="btn btn-sm btn-primary">Start Guide</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-lg-6">
+                <div class="quick-start-card">
+                    <h4><i class="fas fa-shield-alt me-2"></i>Fraud Investigation</h4>
+                    <p>Step-by-step fraud alert investigation process</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-warning">12 minutes</span>
+                        <a href="/user-guide/fraud-detection#investigation" class="btn btn-sm btn-primary">Start Guide</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="quick-start-card">
+                    <h4><i class="fas fa-chart-line me-2"></i>Risk Assessment</h4>
+                    <p>Create and manage comprehensive risk assessments</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="badge bg-danger">20 minutes</span>
+                        <a href="/user-guide/risk-management#assessment" class="btn btn-sm btn-primary">Start Guide</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Modules Section -->
+    <section id="modules" class="mb-5">
+        <h2 class="mb-4">
+            <i class="fas fa-th-large me-2"></i>
+            Module Documentation
+        </h2>
+        <div class="row">
+            <!-- AML/KYC Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-user-check"></i>
+                        </div>
+                        <h5 class="card-title">AML/KYC Module</h5>
+                        <p class="card-text">Customer onboarding, identity verification, transaction monitoring, and sanctions screening workflows.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">156 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/aml-kyc" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fraud Detection Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h5 class="card-title">Fraud Detection</h5>
+                        <p class="card-text">Real-time fraud monitoring, ML-powered detection, investigation workflows, and case management.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">142 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/fraud-detection" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Management Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h5 class="card-title">Risk Management</h5>
+                        <p class="card-text">Risk assessments, Monte Carlo simulations, KRI monitoring, and comprehensive risk analytics.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">128 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/risk-management" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-clipboard-check"></i>
+                        </div>
+                        <h5 class="card-title">Compliance Management</h5>
+                        <p class="card-text">Policy management, regulatory tracking, audit workflows, and compliance reporting systems.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">134 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/compliance" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cybersecurity Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                        <h5 class="card-title">Cybersecurity</h5>
+                        <p class="card-text">Vulnerability assessments, security monitoring, incident response, and compliance tracking.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">118 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/cybersecurity" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Orchestration Module -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card module-card h-100">
+                    <div class="card-body text-center">
+                        <div class="module-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <h5 class="card-title">AI Orchestration</h5>
+                        <p class="card-text">AI-powered regulatory Q&A, requirement mapping, and intelligent compliance automation.</p>
+                        <div class="mb-3">
+                            <span class="badge bg-success me-1">Active</span>
+                            <span class="badge bg-info">96 Pages</span>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="/user-guide/ai-orchestration" class="btn btn-primary w-100">
+                            <i class="fas fa-book me-2"></i>View Guide
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

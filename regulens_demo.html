@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RegulenAI - Regulatory Compliance Platform</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; color: white; margin-bottom: 40px; }
+        .header h1 { font-size: 3em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 40px; }
+        .card { background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); transition: transform 0.3s ease; }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { color: #333; margin-bottom: 15px; font-size: 1.4em; }
+        .card p { color: #666; line-height: 1.6; margin-bottom: 15px; }
+        .btn { background: linear-gradient(45deg, #667eea, #764ba2); color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; font-size: 1em; transition: all 0.3s ease; }
+        .btn:hover { transform: scale(1.05); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .status { display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: bold; }
+        .status.active { background: #4CAF50; color: white; }
+        .demo-section { background: white; border-radius: 15px; padding: 30px; margin-top: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .api-demo { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .api-request, .api-response { background: #f8f9fa; border-radius: 10px; padding: 20px; }
+        .api-request h4, .api-response h4 { margin-bottom: 15px; color: #333; }
+        pre { background: #2d3748; color: #e2e8f0; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 0.9em; }
+        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 20px; }
+        .feature-item { background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #667eea; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ RegulenAI</h1>
+            <p>Enterprise Regulatory Compliance & Risk Management Platform</p>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>🔍 AML/KYC Verification</h3>
+                <p>Advanced Anti-Money Laundering and Know Your Customer verification with real-time risk scoring.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showAMLDemo()">Test KYC Verification</button>
+            </div>
+
+            <div class="card">
+                <h3>🚨 Fraud Detection</h3>
+                <p>Machine learning-powered transaction analysis for fraud detection and prevention.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showFraudDemo()">Analyze Transaction</button>
+            </div>
+
+            <div class="card">
+                <h3>🔒 Cybersecurity Assessment</h3>
+                <p>Comprehensive vulnerability assessment and security compliance monitoring.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showSecurityDemo()">Run Security Scan</button>
+            </div>
+
+            <div class="card">
+                <h3>📊 Risk Management</h3>
+                <p>Monte Carlo simulations and advanced risk modeling for portfolio management.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showRiskDemo()">Calculate Risk</button>
+            </div>
+
+            <div class="card">
+                <h3>📋 Compliance Monitoring</h3>
+                <p>Real-time compliance policy management and regulatory reporting.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showComplianceDemo()">Check Compliance</button>
+            </div>
+
+            <div class="card">
+                <h3>📈 Analytics Dashboard</h3>
+                <p>Comprehensive metrics and reporting for all compliance activities.</p>
+                <span class="status active">Active</span>
+                <br><br>
+                <button class="btn" onclick="showMetricsDemo()">View Metrics</button>
+            </div>
+        </div>
+
+        <div class="demo-section" id="demoSection" style="display: none;">
+            <h2 id="demoTitle">API Demonstration</h2>
+            <div class="api-demo">
+                <div class="api-request">
+                    <h4>📤 API Request</h4>
+                    <pre id="requestCode"></pre>
+                </div>
+                <div class="api-response">
+                    <h4>📥 API Response</h4>
+                    <pre id="responseCode"></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>🏗️ System Architecture</h2>
+            <div class="feature-grid">
+                <div class="feature-item">
+                    <strong>🦀 Rust Backend</strong><br>
+                    High-performance microservices architecture
+                </div>
+                <div class="feature-item">
+                    <strong>🐘 PostgreSQL</strong><br>
+                    Robust data persistence and analytics
+                </div>
+                <div class="feature-item">
+                    <strong>🔴 Redis</strong><br>
+                    High-speed caching and session management
+                </div>
+                <div class="feature-item">
+                    <strong>🐳 Docker</strong><br>
+                    Containerized deployment and scaling
+                </div>
+                <div class="feature-item">
+                    <strong>🔐 JWT Auth</strong><br>
+                    Secure authentication and authorization
+                </div>
+                <div class="feature-item">
+                    <strong>📊 Real-time Analytics</strong><br>
+                    Live monitoring and reporting
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showDemo(title, request, response) {
+            document.getElementById('demoTitle').textContent = title;
+            document.getElementById('requestCode').textContent = request;
+            document.getElementById('responseCode').textContent = response;
+            document.getElementById('demoSection').style.display = 'block';
+            document.getElementById('demoSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showAMLDemo() {
+            const request = `POST /api/v1/aml/kyc-verification
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "customer_id": "CUST_12345",
+  "first_name": "John",
+  "last_name": "Doe",
+  "date_of_birth": "1985-06-15",
+  "document_type": "passport",
+  "document_number": "P123456789",
+  "country": "US"
+}`;
+
+            const response = `{
+  "verification_id": "VER_789012",
+  "status": "verified",
+  "risk_score": 15,
+  "risk_level": "low",
+  "checks_performed": [
+    {
+      "type": "identity_verification",
+      "status": "passed",
+      "confidence": 0.98
+    },
+    {
+      "type": "sanctions_screening",
+      "status": "clear",
+      "matches_found": 0
+    },
+    {
+      "type": "pep_screening",
+      "status": "clear",
+      "matches_found": 0
+    }
+  ],
+  "timestamp": "2025-08-03T12:15:30Z",
+  "processing_time_ms": 1250
+}`;
+
+            showDemo('🔍 AML/KYC Verification Demo', request, response);
+        }
+
+        function showFraudDemo() {
+            const request = `POST /api/v1/fraud-detection/analyze-transaction
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "transaction_id": "TXN_987654",
+  "amount": 15000.00,
+  "currency": "USD",
+  "merchant_id": "MERCH_456",
+  "customer_id": "CUST_12345",
+  "payment_method": "credit_card",
+  "location": {
+    "country": "US",
+    "city": "New York",
+    "ip_address": "192.168.1.100"
+  },
+  "timestamp": "2025-08-03T12:15:30Z"
+}`;
+
+            const response = `{
+  "analysis_id": "FRAUD_456789",
+  "fraud_score": 23,
+  "risk_level": "low",
+  "recommendation": "approve",
+  "factors_analyzed": [
+    {
+      "factor": "transaction_amount",
+      "score": 5,
+      "description": "Amount within normal range"
+    },
+    {
+      "factor": "location_consistency",
+      "score": 2,
+      "description": "Location matches customer profile"
+    },
+    {
+      "factor": "velocity_check",
+      "score": 8,
+      "description": "Slightly elevated transaction frequency"
+    },
+    {
+      "factor": "device_fingerprint",
+      "score": 1,
+      "description": "Known device"
+    }
+  ],
+  "processing_time_ms": 850
+}`;
+
+            showDemo('🚨 Fraud Detection Demo', request, response);
+        }
+
+        function showSecurityDemo() {
+            const request = `POST /api/v1/cybersecurity/vulnerability-assessment
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "target_system": "web-application",
+  "scan_type": "comprehensive",
+  "endpoints": [
+    "https://api.example.com",
+    "https://app.example.com"
+  ],
+  "scan_depth": "deep",
+  "include_compliance": true
+}`;
+
+            const response = `{
+  "scan_id": "SCAN_321654",
+  "status": "completed",
+  "overall_risk_score": 35,
+  "risk_level": "medium",
+  "vulnerabilities_found": 3,
+  "critical_issues": 0,
+  "high_issues": 1,
+  "medium_issues": 2,
+  "low_issues": 0,
+  "compliance_status": {
+    "SOC2": "compliant",
+    "PCI_DSS": "compliant",
+    "GDPR": "compliant",
+    "ISO27001": "partial"
+  },
+  "recommendations": [
+    "Update SSL/TLS configuration",
+    "Implement additional rate limiting",
+    "Review access control policies"
+  ],
+  "scan_duration_seconds": 45
+}`;
+
+            showDemo('🔒 Cybersecurity Assessment Demo', request, response);
+        }
+
+        function showRiskDemo() {
+            const request = `POST /api/v1/risk-management/monte-carlo-simulation
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "portfolio_id": "PORT_789",
+  "simulation_parameters": {
+    "iterations": 10000,
+    "time_horizon_days": 252,
+    "confidence_levels": [0.95, 0.99],
+    "risk_factors": [
+      "market_volatility",
+      "credit_risk",
+      "operational_risk"
+    ]
+  },
+  "portfolio_value": 10000000
+}`;
+
+            const response = `{
+  "simulation_id": "SIM_654321",
+  "status": "completed",
+  "results": {
+    "var_95": 1250000,
+    "var_99": 1850000,
+    "expected_shortfall_95": 1450000,
+    "expected_shortfall_99": 2100000,
+    "maximum_loss": 3200000,
+    "probability_of_loss": 0.42
+  },
+  "risk_metrics": {
+    "sharpe_ratio": 1.35,
+    "sortino_ratio": 1.68,
+    "maximum_drawdown": 0.18,
+    "volatility": 0.15
+  },
+  "computation_time_seconds": 12.5
+}`;
+
+            showDemo('📊 Risk Management Demo', request, response);
+        }
+
+        function showComplianceDemo() {
+            const request = `POST /api/v1/compliance/policy-check
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+  "entity_id": "ENT_456789",
+  "policy_framework": "SOX",
+  "check_type": "comprehensive",
+  "data_sources": [
+    "financial_records",
+    "audit_logs",
+    "access_controls"
+  ],
+  "reporting_period": "Q2_2025"
+}`;
+
+            const response = `{
+  "compliance_check_id": "COMP_987654",
+  "overall_status": "compliant",
+  "compliance_score": 92,
+  "policy_results": [
+    {
+      "policy_id": "SOX_302",
+      "status": "compliant",
+      "score": 95,
+      "description": "Management assessment of internal controls"
+    },
+    {
+      "policy_id": "SOX_404",
+      "status": "compliant",
+      "score": 88,
+      "description": "Internal control over financial reporting"
+    },
+    {
+      "policy_id": "SOX_906",
+      "status": "compliant",
+      "score": 94,
+      "description": "CEO/CFO certification"
+    }
+  ],
+  "recommendations": [
+    "Enhance documentation for control testing",
+    "Implement additional segregation of duties"
+  ],
+  "next_review_date": "2025-11-03"
+}`;
+
+            showDemo('📋 Compliance Monitoring Demo', request, response);
+        }
+
+        function showMetricsDemo() {
+            const request = `GET /api/v1/metrics/dashboard
+Authorization: Bearer <token>
+X-Time-Range: 30d
+X-Granularity: daily`;
+
+            const response = `{
+  "dashboard_id": "DASH_123456",
+  "time_range": "30d",
+  "metrics": {
+    "aml_verifications": {
+      "total": 15420,
+      "approved": 14890,
+      "rejected": 530,
+      "approval_rate": 0.966
+    },
+    "fraud_detections": {
+      "transactions_analyzed": 2847392,
+      "fraud_detected": 1247,
+      "false_positives": 89,
+      "accuracy": 0.993
+    },
+    "security_scans": {
+      "scans_completed": 456,
+      "vulnerabilities_found": 23,
+      "critical_issues": 2,
+      "avg_resolution_time_hours": 4.2
+    },
+    "compliance_checks": {
+      "policies_monitored": 127,
+      "compliance_rate": 0.984,
+      "violations_detected": 8,
+      "avg_remediation_time_days": 2.1
+    }
+  },
+  "system_health": {
+    "uptime_percentage": 99.97,
+    "avg_response_time_ms": 145,
+    "error_rate": 0.003
+  }
+}`;
+
+            showDemo('📈 Analytics Dashboard Demo', request, response);
+        }
+    </script>
+</body>
+</html>

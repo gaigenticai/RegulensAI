@@ -249,24 +249,73 @@ impl MemoryCache {
 
     /// Get keys matching pattern
     pub async fn keys(&self, pattern: &str) -> CacheResult<Vec<String>> {
-        // Moka doesn't provide direct key iteration, so we'll need to track keys separately
-        // For now, return empty vector
-        // In a production implementation, you might maintain a separate key index
-        Ok(Vec::new())
+        // Since Moka doesn't provide direct key iteration, we maintain a separate key index
+        let key_index = self.key_index.read().await;
+
+        if pattern == "*" {
+            // Return all keys
+            Ok(key_index.iter().cloned().collect())
+        } else if pattern.contains('*') {
+            // Simple glob pattern matching
+            let regex_pattern = pattern.replace('*', ".*");
+            let regex = regex::Regex::new(&regex_pattern)
+                .map_err(|e| CacheError::InvalidPattern(format!("Invalid pattern: {}", e)))?;
+
+            Ok(key_index.iter()
+                .filter(|key| regex.is_match(key))
+                .cloned()
+                .collect())
+        } else {
+            // Exact match
+            if key_index.contains(pattern) {
+                Ok(vec![pattern.to_string()])
+            } else {
+                Ok(Vec::new())
+            }
+        }
     }
 
     /// Invalidate entries matching pattern
     pub async fn invalidate_pattern(&self, pattern: &str) -> CacheResult<u64> {
-        // For pattern matching, we'd need to maintain a key index
-        // This is a simplified implementation
+        let mut key_index = self.key_index.write().await;
+        let mut invalidated_count = 0;
+
         if pattern == "*" {
+            // Invalidate all entries
             let count = self.cache.entry_count();
             self.cache.invalidate_all();
             self.cache.run_pending_tasks().await;
+            key_index.clear();
             Ok(count)
+        } else if pattern.contains('*') {
+            // Pattern matching with glob
+            let regex_pattern = pattern.replace('*', ".*");
+            let regex = regex::Regex::new(&regex_pattern)
+                .map_err(|e| CacheError::InvalidPattern(format!("Invalid pattern: {}", e)))?;
+
+            let keys_to_remove: Vec<String> = key_index.iter()
+                .filter(|key| regex.is_match(key))
+                .cloned()
+                .collect();
+
+            for key in &keys_to_remove {
+                self.cache.invalidate(key);
+                key_index.remove(key);
+                invalidated_count += 1;
+            }
+
+            self.cache.run_pending_tasks().await;
+            Ok(invalidated_count)
         } else {
-            // Pattern matching would require key enumeration
-            Ok(0)
+            // Exact match
+            if key_index.contains(pattern) {
+                self.cache.invalidate(pattern);
+                key_index.remove(pattern);
+                self.cache.run_pending_tasks().await;
+                Ok(1)
+            } else {
+                Ok(0)
+            }
         }
     }
 

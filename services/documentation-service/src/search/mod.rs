@@ -255,6 +255,9 @@ impl SearchEngine {
         // Index environment configuration
         self.index_environment_config(&mut index_writer)?;
 
+        // Index user guide content
+        self.index_user_guide_content(&mut index_writer)?;
+
         // Commit changes
         index_writer.commit()
             .map_err(|e| RegulateAIError::SearchError {
@@ -433,5 +436,92 @@ fn truncate_content(content: &str, max_length: usize) -> String {
         content.to_string()
     } else {
         format!("{}...", &content[..max_length])
+    }
+    /// Index user guide content
+    fn index_user_guide_content(&self, writer: &mut IndexWriter) -> Result<(), RegulateAIError> {
+        // Index user guide modules
+        let modules = vec![
+            ("AML/KYC Module", "Complete guide for Anti-Money Laundering and Know Your Customer processes including customer onboarding, identity verification, transaction monitoring, sanctions screening, and regulatory reporting workflows.", "/user-guide/aml-kyc"),
+            ("Fraud Detection Module", "Comprehensive fraud detection and prevention guide covering real-time monitoring, ML-powered detection, investigation workflows, case management, and performance analytics.", "/user-guide/fraud-detection"),
+            ("Risk Management Module", "Enterprise risk management guide including risk assessments, Monte Carlo simulations, KRI monitoring, stress testing, and comprehensive risk analytics.", "/user-guide/risk-management"),
+            ("Compliance Management Module", "Policy management and regulatory compliance guide covering policy lifecycle, regulatory tracking, audit workflows, and compliance reporting systems.", "/user-guide/compliance"),
+            ("Cybersecurity Module", "Cybersecurity assessment and monitoring guide including vulnerability assessments, security monitoring, incident response, and compliance tracking.", "/user-guide/cybersecurity"),
+            ("AI Orchestration Module", "AI-powered regulatory assistance guide covering regulatory Q&A, requirement mapping, automated compliance recommendations, and intelligent automation.", "/user-guide/ai-orchestration"),
+        ];
+
+        for (title, description, url) in modules {
+            self.index_feature_documentation(
+                writer,
+                title,
+                &format!("{} - Complete user guide with step-by-step workflows, field references, usage examples, and troubleshooting guides.", description),
+                url,
+                "User Guide",
+                "Documentation",
+            )?;
+        }
+
+        // Index common workflows
+        let workflows = vec![
+            ("Customer Onboarding Workflow", "Step-by-step guide for onboarding new customers with KYC verification, document upload, risk assessment, and compliance checks.", "/user-guide/aml-kyc#customer-onboarding"),
+            ("Fraud Alert Investigation", "Complete workflow for investigating fraud alerts including alert review, customer analysis, decision making, and case documentation.", "/user-guide/fraud-detection#fraud-investigation"),
+            ("Risk Assessment Creation", "Comprehensive guide for creating risk assessments including risk identification, control mapping, likelihood and impact analysis.", "/user-guide/risk-management#risk-assessment"),
+            ("Policy Management Workflow", "Policy lifecycle management including creation, review, approval, publication, and maintenance processes.", "/user-guide/compliance#policy-management"),
+            ("Vulnerability Assessment Process", "Security assessment workflow covering vulnerability scanning, risk evaluation, remediation planning, and compliance tracking.", "/user-guide/cybersecurity#vulnerability-assessment"),
+            ("Regulatory Q&A Usage", "Guide for using AI-powered regulatory assistance including question formulation, context provision, and result interpretation.", "/user-guide/ai-orchestration#regulatory-qa"),
+        ];
+
+        for (title, description, url) in workflows {
+            self.index_feature_documentation(
+                writer,
+                title,
+                description,
+                url,
+                "Workflow Guide",
+                "User Guide",
+            )?;
+        }
+
+        // Index field references
+        let field_references = vec![
+            ("Customer Fields Reference", "Complete reference for customer data fields including first_name, last_name, date_of_birth, nationality, risk_rating, kyc_status, and validation rules.", "/user-guide/aml-kyc#field-reference"),
+            ("Transaction Fields Reference", "Transaction data field reference covering transaction_id, amount, currency, transaction_type, risk_score, and monitoring status fields.", "/user-guide/fraud-detection#field-reference"),
+            ("Risk Assessment Fields", "Risk management field reference including risk_title, likelihood, impact, control_effectiveness, residual_risk, and review dates.", "/user-guide/risk-management#field-reference"),
+            ("Policy Fields Reference", "Compliance policy field reference covering policy_title, policy_type, effective_date, review_date, approval_status, and metadata fields.", "/user-guide/compliance#field-reference"),
+            ("Security Assessment Fields", "Cybersecurity field reference including vulnerability_id, severity, cvss_score, affected_systems, and remediation status.", "/user-guide/cybersecurity#field-reference"),
+        ];
+
+        for (title, description, url) in field_references {
+            self.index_feature_documentation(
+                writer,
+                title,
+                description,
+                url,
+                "Field Reference",
+                "User Guide",
+            )?;
+        }
+
+        // Index troubleshooting content
+        let troubleshooting = vec![
+            ("Login and Authentication Issues", "Troubleshooting guide for login problems, password resets, account lockouts, session timeouts, and authentication errors.", "/user-guide/troubleshooting#authentication"),
+            ("KYC Verification Problems", "Solutions for KYC verification issues including document upload failures, OCR errors, verification delays, and status problems.", "/user-guide/aml-kyc#troubleshooting"),
+            ("Fraud Detection Issues", "Troubleshooting fraud detection problems including alert delays, false positives, model performance, and investigation workflow issues.", "/user-guide/fraud-detection#troubleshooting"),
+            ("Risk Assessment Problems", "Risk management troubleshooting covering assessment creation errors, calculation issues, reporting problems, and data validation errors.", "/user-guide/risk-management#troubleshooting"),
+            ("Performance and Loading Issues", "Solutions for system performance problems including slow loading, browser compatibility, memory issues, and optimization tips.", "/user-guide/troubleshooting#performance"),
+        ];
+
+        for (title, description, url) in troubleshooting {
+            self.index_feature_documentation(
+                writer,
+                title,
+                description,
+                url,
+                "Troubleshooting",
+                "User Guide",
+            )?;
+        }
+
+        info!("User guide content indexing completed");
+        Ok(())
     }
 }

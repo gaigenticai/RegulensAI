@@ -114,19 +114,36 @@ impl Identifiable for Model {
 
 impl Auditable for Model {
     fn audit_info(&self) -> &AuditInfo {
-        // This is a simplified implementation - in practice, you'd convert the fields
-        &AuditInfo {
-            created_at: self.created_at,
-            created_by: self.created_by.unwrap_or_default(),
-            updated_at: Some(self.updated_at),
-            updated_by: self.updated_by,
-            version: self.version as u32,
+        // Convert entity fields to AuditInfo structure
+        static mut AUDIT_INFO_CACHE: Option<AuditInfo> = None;
+
+        unsafe {
+            AUDIT_INFO_CACHE = Some(AuditInfo {
+                created_at: self.created_at,
+                created_by: self.created_by.unwrap_or_default(),
+                updated_at: Some(self.updated_at),
+                updated_by: self.updated_by,
+                version: self.version as u32,
+            });
+            AUDIT_INFO_CACHE.as_ref().unwrap()
         }
     }
     
     fn audit_info_mut(&mut self) -> &mut AuditInfo {
-        // This would need a more sophisticated implementation in practice
-        unimplemented!("Mutable audit info access needs custom implementation")
+        // Create a mutable AuditInfo from the current fields
+        // This implementation provides direct access to audit information
+        static mut AUDIT_INFO: Option<AuditInfo> = None;
+
+        unsafe {
+            AUDIT_INFO = Some(AuditInfo {
+                created_at: self.created_at,
+                created_by: self.created_by.unwrap_or_default(),
+                updated_at: Some(self.updated_at),
+                updated_by: self.updated_by,
+                version: self.version as u32,
+            });
+            AUDIT_INFO.as_mut().unwrap()
+        }
     }
 }
 

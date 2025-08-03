@@ -712,8 +712,43 @@ pub fn render_testing_dashboard(data: &crate::handlers::TestingDashboardData) ->
     rendered = rendered.replace("{{ active_runs | length }}", &data.active_runs.len().to_string());
     rendered = rendered.replace("{{ recent_tests | length }}", &data.recent_tests.len().to_string());
 
-    // In a real implementation, this would properly render the loops and conditionals
-    // For demonstration purposes, we'll return the basic template
+    // Render active runs list
+    if rendered.contains("{% for run in active_runs %}") {
+        let mut runs_html = String::new();
+        for run in &data.active_runs {
+            runs_html.push_str(&format!(
+                r#"<div class="run-item">
+                    <h4>{}</h4>
+                    <p>Status: {}</p>
+                    <p>Started: {}</p>
+                </div>"#,
+                run.name, run.status, run.started_at.format("%Y-%m-%d %H:%M:%S")
+            ));
+        }
+        rendered = rendered.replace(
+            "{% for run in active_runs %}{{ run.name }}{% endfor %}",
+            &runs_html
+        );
+    }
+
+    // Render recent tests list
+    if rendered.contains("{% for test in recent_tests %}") {
+        let mut tests_html = String::new();
+        for test in &data.recent_tests {
+            tests_html.push_str(&format!(
+                r#"<div class="test-item">
+                    <h4>{}</h4>
+                    <p>Result: {}</p>
+                    <p>Executed: {}</p>
+                </div>"#,
+                test.name, test.result, test.executed_at.format("%Y-%m-%d %H:%M:%S")
+            ));
+        }
+        rendered = rendered.replace(
+            "{% for test in recent_tests %}{{ test.name }}{% endfor %}",
+            &tests_html
+        );
+    }
 
     Ok(rendered)
 }
@@ -944,6 +979,39 @@ pub fn render_advanced_analytics(data: &crate::handlers::AdvancedAnalyticsData) 
     "#;
 
     let mut rendered = template_content.to_string();
+    rendered = rendered.replace("{{ user.username }}", &data.user.username);
+
+    Ok(rendered)
+}
+
+/// Render user guide home template
+pub fn render_user_guide_home(data: &crate::models::UserGuideHomeData) -> Result<String, RegulateAIError> {
+    let template_path = "services/documentation-service/templates/user_guide_home.html";
+    let template_content = std::fs::read_to_string(template_path)
+        .map_err(|e| RegulateAIError::InternalError(format!("Failed to read template: {}", e)))?;
+
+    let mut rendered = template_content;
+
+    // Replace user information
+    rendered = rendered.replace("{{ user.username }}", &data.user.username);
+    rendered = rendered.replace("{{ modules | length }}", &data.modules.len().to_string());
+    rendered = rendered.replace("{{ quick_start_guides | length }}", &data.quick_start_guides.len().to_string());
+
+    Ok(rendered)
+}
+
+/// Render user guide module template
+pub fn render_user_guide_module(data: &crate::models::UserGuideModuleData) -> Result<String, RegulateAIError> {
+    let template_path = "services/documentation-service/templates/user_guide_module.html";
+    let template_content = std::fs::read_to_string(template_path)
+        .map_err(|e| RegulateAIError::InternalError(format!("Failed to read template: {}", e)))?;
+
+    let mut rendered = template_content;
+
+    // Replace module information
+    rendered = rendered.replace("{{ module.name }}", &data.module.name);
+    rendered = rendered.replace("{{ module.description }}", &data.module.description);
+    rendered = rendered.replace("{{ module.overview }}", &data.module.overview);
     rendered = rendered.replace("{{ user.username }}", &data.user.username);
 
     Ok(rendered)

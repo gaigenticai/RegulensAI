@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+
+{% block title %}RegulateAI User Guide - Comprehensive Documentation{% endblock %}
+
+{% block description %}Complete user guide for RegulateAI platform with step-by-step instructions, field explanations, and workflow documentation{% endblock %}
+
+{% block extra_head %}
+<style>
+    .user-guide-nav {
+        position: sticky;
+        top: 80px;
+        max-height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+    .guide-section {
+        margin-bottom: 3rem;
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+        border-left: 4px solid #007bff;
+    }
+    .field-reference {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .field-name {
+        font-weight: bold;
+        color: #007bff;
+        font-family: 'Courier New', monospace;
+    }
+    .field-type {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.8em;
+        margin-left: 0.5rem;
+    }
+    .workflow-step {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        position: relative;
+    }
+    .step-number {
+        position: absolute;
+        top: -10px;
+        left: 20px;
+        background: #007bff;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    .screenshot-placeholder {
+        background: #e9ecef;
+        border: 2px dashed #adb5bd;
+        border-radius: 5px;
+        padding: 2rem;
+        text-align: center;
+        color: #6c757d;
+        margin: 1rem 0;
+    }
+    .quick-reference {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .warning-box {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .code-example {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        padding: 1rem;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        overflow-x: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Navigation Sidebar -->
+        <div class="col-md-3">
+            <div class="user-guide-nav">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-book me-2"></i>
+                            User Guide Navigation
+                        </h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <nav class="nav flex-column">
+                            <a class="nav-link" href="#getting-started">
+                                <i class="fas fa-play-circle me-2"></i>Getting Started
+                            </a>
+                            <a class="nav-link" href="#user-roles">
+                                <i class="fas fa-users me-2"></i>User Roles
+                            </a>
+                            <a class="nav-link" href="#aml-kyc-guide">
+                                <i class="fas fa-user-check me-2"></i>AML/KYC Module
+                            </a>
+                            <a class="nav-link" href="#fraud-detection-guide">
+                                <i class="fas fa-shield-alt me-2"></i>Fraud Detection
+                            </a>
+                            <a class="nav-link" href="#risk-management-guide">
+                                <i class="fas fa-chart-line me-2"></i>Risk Management
+                            </a>
+                            <a class="nav-link" href="#compliance-guide">
+                                <i class="fas fa-clipboard-check me-2"></i>Compliance
+                            </a>
+                            <a class="nav-link" href="#cybersecurity-guide">
+                                <i class="fas fa-lock me-2"></i>Cybersecurity
+                            </a>
+                            <a class="nav-link" href="#ai-orchestration-guide">
+                                <i class="fas fa-robot me-2"></i>AI Orchestration
+                            </a>
+                            <a class="nav-link" href="#field-reference">
+                                <i class="fas fa-list me-2"></i>Field Reference
+                            </a>
+                            <a class="nav-link" href="#troubleshooting">
+                                <i class="fas fa-tools me-2"></i>Troubleshooting
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <!-- Header -->
+            <div class="jumbotron bg-gradient-primary text-white rounded mb-4">
+                <div class="container-fluid py-4">
+                    <h1 class="display-5">
+                        <i class="fas fa-book-open me-3"></i>
+                        RegulateAI User Guide
+                    </h1>
+                    <p class="lead">
+                        Comprehensive documentation for using the RegulateAI enterprise compliance platform.
+                        Step-by-step instructions, field explanations, and workflow guidance.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Getting Started Section -->
+            <section id="getting-started" class="guide-section">
+                <h2><i class="fas fa-play-circle me-2"></i>Getting Started</h2>
+                
+                <div class="workflow-step">
+                    <div class="step-number">1</div>
+                    <h4>System Access</h4>
+                    <p>Learn how to log in and navigate the RegulateAI platform.</p>
+                    
+                    <div class="field-reference">
+                        <div class="field-name">Username</div>
+                        <span class="field-type">String</span>
+                        <p>Your assigned username (typically email address). Case-sensitive.</p>
+                    </div>
+                    
+                    <div class="field-reference">
+                        <div class="field-name">Password</div>
+                        <span class="field-type">String</span>
+                        <p>Your secure password. Must meet complexity requirements (8+ characters, mixed case, numbers, symbols).</p>
+                    </div>
+                    
+                    <div class="quick-reference">
+                        <strong>Quick Tip:</strong> Use the "Remember Me" option only on secure, personal devices.
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="step-number">2</div>
+                    <h4>Dashboard Overview</h4>
+                    <p>Understanding your personalized dashboard and navigation options.</p>
+                    
+                    <div class="screenshot-placeholder">
+                        <i class="fas fa-image fa-3x mb-2"></i>
+                        <p>Dashboard Screenshot Placeholder</p>
+                    </div>
+                    
+                    <ul>
+                        <li><strong>Navigation Bar:</strong> Access to all modules and settings</li>
+                        <li><strong>Quick Actions:</strong> Common tasks for your role</li>
+                        <li><strong>Status Indicators:</strong> Real-time system health and alerts</li>
+                        <li><strong>Recent Activity:</strong> Your recent actions and notifications</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- AML/KYC Module Guide -->
+            <section id="aml-kyc-guide" class="guide-section">
+                <h2><i class="fas fa-user-check me-2"></i>AML/KYC Module User Guide</h2>
+                
+                <div class="workflow-step">
+                    <div class="step-number">1</div>
+                    <h4>Customer Onboarding</h4>
+                    <p>Complete workflow for onboarding new customers with KYC verification.</p>
+                    
+                    <h5>Individual Customer Fields</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="field-reference">
+                                <div class="field-name">first_name</div>
+                                <span class="field-type">Required</span>
+                                <p>Customer's legal first name as it appears on government-issued ID. Maximum 100 characters.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="field-reference">
+                                <div class="field-name">last_name</div>
+                                <span class="field-type">Required</span>
+                                <p>Customer's legal last name as it appears on government-issued ID. Maximum 100 characters.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field-reference">
+                        <div class="field-name">date_of_birth</div>
+                        <span class="field-type">Date (YYYY-MM-DD)</span>
+                        <p>Customer's date of birth. Used for age verification and risk assessment. Must be 18+ for most services.</p>
+                    </div>
+                    
+                    <div class="field-reference">
+                        <div class="field-name">nationality</div>
+                        <span class="field-type">ISO 3166-1 Alpha-3</span>
+                        <p>Customer's nationality using 3-letter country codes (e.g., USA, CAN, GBR). Used for sanctions screening and risk assessment.</p>
+                    </div>
+                    
+                    <div class="warning-box">
+                        <strong>Important:</strong> All customer information must match government-issued identification documents exactly.
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="step-number">2</div>
+                    <h4>Risk Assessment</h4>
+                    <p>Automated and manual risk assessment process.</p>
+                    
+                    <div class="field-reference">
+                        <div class="field-name">risk_rating</div>
+                        <span class="field-type">Enum</span>
+                        <p>Calculated risk level: LOW, MEDIUM, HIGH, VERY_HIGH. Automatically determined based on multiple factors.</p>
+                        <ul>
+                            <li><strong>LOW:</strong> Standard processing, minimal documentation</li>
+                            <li><strong>MEDIUM:</strong> Additional verification may be required</li>
+                            <li><strong>HIGH:</strong> Enhanced due diligence required</li>
+                            <li><strong>VERY_HIGH:</strong> Senior approval and extensive documentation required</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Field Reference Section -->
+            <section id="field-reference" class="guide-section">
+                <h2><i class="fas fa-list me-2"></i>Complete Field Reference</h2>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <h3>Customer Data Fields</h3>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Field Name</th>
+                                        <th>Type</th>
+                                        <th>Required</th>
+                                        <th>Description</th>
+                                        <th>Validation Rules</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>customer_id</code></td>
+                                        <td>UUID</td>
+                                        <td>Auto-generated</td>
+                                        <td>Unique system identifier</td>
+                                        <td>System-generated UUID v4</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>first_name</code></td>
+                                        <td>String</td>
+                                        <td>Yes</td>
+                                        <td>Customer's legal first name</td>
+                                        <td>1-100 characters, letters and spaces only</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>last_name</code></td>
+                                        <td>String</td>
+                                        <td>Yes</td>
+                                        <td>Customer's legal last name</td>
+                                        <td>1-100 characters, letters and spaces only</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>date_of_birth</code></td>
+                                        <td>Date</td>
+                                        <td>Yes</td>
+                                        <td>Customer's birth date</td>
+                                        <td>YYYY-MM-DD format, must be 18+ years ago</td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>kyc_status</code></td>
+                                        <td>Enum</td>
+                                        <td>Auto-set</td>
+                                        <td>KYC verification status</td>
+                                        <td>PENDING, IN_PROGRESS, COMPLETED, FAILED</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Troubleshooting Section -->
+            <section id="troubleshooting" class="guide-section">
+                <h2><i class="fas fa-tools me-2"></i>Troubleshooting</h2>
+                
+                <div class="accordion" id="troubleshootingAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="loginIssues">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLogin">
+                                Login and Authentication Issues
+                            </button>
+                        </h2>
+                        <div id="collapseLogin" class="accordion-collapse collapse show" data-bs-parent="#troubleshootingAccordion">
+                            <div class="accordion-body">
+                                <h5>Common Login Problems:</h5>
+                                <ul>
+                                    <li><strong>Invalid credentials:</strong> Verify username and password are correct</li>
+                                    <li><strong>Account locked:</strong> Contact administrator after 5 failed attempts</li>
+                                    <li><strong>Session expired:</strong> Log out completely and log back in</li>
+                                    <li><strong>Browser issues:</strong> Clear cache and cookies, try incognito mode</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="performanceIssues">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePerformance">
+                                Performance and Loading Issues
+                            </button>
+                        </h2>
+                        <div id="collapsePerformance" class="accordion-collapse collapse" data-bs-parent="#troubleshootingAccordion">
+                            <div class="accordion-body">
+                                <h5>Performance Optimization:</h5>
+                                <ul>
+                                    <li><strong>Slow loading:</strong> Check internet connection, try refreshing page</li>
+                                    <li><strong>Browser compatibility:</strong> Use Chrome, Firefox, Safari, or Edge (latest versions)</li>
+                                    <li><strong>Large datasets:</strong> Use filters to reduce data volume</li>
+                                    <li><strong>Memory issues:</strong> Close unused browser tabs</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<!-- Back to Top Button -->
+<button type="button" class="btn btn-primary btn-floating btn-lg" id="btn-back-to-top" style="position: fixed; bottom: 20px; right: 20px; display: none;">
+    <i class="fas fa-arrow-up"></i>
+</button>
+
+<script>
+// Back to top functionality
+let mybutton = document.getElementById("btn-back-to-top");
+
+window.onscroll = function () {
+    scrollFunction();
+};
+
+function scrollFunction() {
+    if (document.body.scrollTop > 20 || document.documentElement.scrollTop > 20) {
+        mybutton.style.display = "block";
+    } else {
+        mybutton.style.display = "none";
+    }
+}
+
+mybutton.addEventListener("click", function() {
+    document.body.scrollTop = 0;
+    document.documentElement.scrollTop = 0;
+});
+
+// Smooth scrolling for navigation links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

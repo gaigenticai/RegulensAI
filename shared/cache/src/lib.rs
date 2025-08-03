@@ -299,12 +299,22 @@ pub mod middleware {
 
     impl CachedHttpResponse {
         pub fn from_response(response: &Response) -> Self {
-            // This is a simplified implementation
-            // In practice, you'd need to handle the response body properly
+            // Extract headers from response
+            let mut headers = std::collections::HashMap::new();
+            for (name, value) in response.headers() {
+                if let Ok(value_str) = value.to_str() {
+                    headers.insert(name.to_string(), value_str.to_string());
+                }
+            }
+
+            // Extract body - in practice, this would be handled asynchronously
+            // For now, we'll create an empty body as the response body is consumed
+            let body = Vec::new();
+
             Self {
                 status: response.status().as_u16(),
-                headers: std::collections::HashMap::new(),
-                body: Vec::new(),
+                headers,
+                body,
                 cached_at: chrono::Utc::now(),
                 ttl_seconds: 300, // 5 minutes
             }
@@ -317,12 +327,32 @@ pub mod middleware {
         }
 
         pub fn into_response(self) -> Response {
-            // This is a simplified implementation
-            // In practice, you'd reconstruct the full response
-            Response::builder()
-                .status(self.status)
+            // Reconstruct the full response with headers and body
+            let mut response_builder = Response::builder().status(self.status);
+
+            // Add all cached headers
+            for (name, value) in self.headers {
+                if let (Ok(header_name), Ok(header_value)) = (
+                    axum::http::HeaderName::from_bytes(name.as_bytes()),
+                    axum::http::HeaderValue::from_str(&value)
+                ) {
+                    response_builder = response_builder.header(header_name, header_value);
+                }
+            }
+
+            // Add cache control headers
+            response_builder = response_builder
+                .header("X-Cache", "HIT")
+                .header("X-Cache-Date", self.cached_at.to_rfc3339());
+
+            response_builder
                 .body(axum::body::Body::from(self.body))
-                .unwrap()
+                .unwrap_or_else(|_| {
+                    Response::builder()
+                        .status(500)
+                        .body(axum::body::Body::from("Cache reconstruction error"))
+                        .unwrap()
+                })
         }
     }
 }

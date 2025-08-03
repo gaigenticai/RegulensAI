@@ -676,3 +676,286 @@ impl Default for DocumentApproval {
         }
     }
 }
+
+/// User guide home page data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserGuideHomeData {
+    /// Current user context
+    pub user: regulateai_auth::AuthContext,
+
+    /// Available modules
+    pub modules: Vec<ModuleInfo>,
+
+    /// Quick start guides
+    pub quick_start_guides: Vec<QuickStartGuide>,
+
+    /// Search functionality enabled
+    pub search_enabled: bool,
+
+    /// Recent guide updates
+    pub recent_updates: Vec<GuideUpdate>,
+}
+
+/// User guide module-specific data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserGuideModuleData {
+    /// Current user context
+    pub user: regulateai_auth::AuthContext,
+
+    /// Module information
+    pub module: ModuleGuideData,
+
+    /// Module workflows
+    pub workflows: Vec<WorkflowGuide>,
+
+    /// Field references
+    pub field_references: Vec<FieldReference>,
+
+    /// Usage examples
+    pub examples: Vec<UsageExample>,
+
+    /// Troubleshooting guides
+    pub troubleshooting: Vec<TroubleshootingItem>,
+}
+
+/// Module information structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleInfo {
+    /// Module identifier
+    pub id: String,
+
+    /// Module display name
+    pub name: String,
+
+    /// Module description
+    pub description: String,
+
+    /// Module icon class
+    pub icon: String,
+
+    /// Module URL path
+    pub url: String,
+
+    /// Module status
+    pub status: String,
+
+    /// User roles that can access this module
+    pub required_roles: Vec<String>,
+}
+
+/// Quick start guide structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickStartGuide {
+    /// Guide identifier
+    pub id: String,
+
+    /// Guide title
+    pub title: String,
+
+    /// Guide description
+    pub description: String,
+
+    /// Estimated completion time in minutes
+    pub estimated_time: u32,
+
+    /// Guide steps
+    pub steps: Vec<GuideStep>,
+
+    /// Required user role
+    pub required_role: String,
+}
+
+/// Guide update information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuideUpdate {
+    /// Update title
+    pub title: String,
+
+    /// Update description
+    pub description: String,
+
+    /// Update timestamp
+    pub updated_at: DateTime<Utc>,
+
+    /// Module affected
+    pub module: String,
+
+    /// Update type
+    pub update_type: String,
+}
+
+/// Module guide data structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModuleGuideData {
+    /// Module identifier
+    pub id: String,
+
+    /// Module name
+    pub name: String,
+
+    /// Module description
+    pub description: String,
+
+    /// Module overview content
+    pub overview: String,
+
+    /// Getting started content
+    pub getting_started: String,
+
+    /// Key features
+    pub key_features: Vec<String>,
+
+    /// Prerequisites
+    pub prerequisites: Vec<String>,
+}
+
+/// Workflow guide structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowGuide {
+    /// Workflow identifier
+    pub id: String,
+
+    /// Workflow title
+    pub title: String,
+
+    /// Workflow description
+    pub description: String,
+
+    /// Workflow steps
+    pub steps: Vec<WorkflowStep>,
+
+    /// Estimated completion time
+    pub estimated_time: u32,
+
+    /// Required permissions
+    pub required_permissions: Vec<String>,
+}
+
+/// Workflow step structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowStep {
+    /// Step number
+    pub step_number: u32,
+
+    /// Step title
+    pub title: String,
+
+    /// Step description
+    pub description: String,
+
+    /// Step instructions
+    pub instructions: String,
+
+    /// Screenshot or image URL
+    pub screenshot_url: Option<String>,
+
+    /// Tips and warnings
+    pub tips: Vec<String>,
+
+    /// Expected outcome
+    pub expected_outcome: String,
+}
+
+/// Guide step structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuideStep {
+    /// Step number
+    pub step_number: u32,
+
+    /// Step title
+    pub title: String,
+
+    /// Step content
+    pub content: String,
+
+    /// Code examples
+    pub code_examples: Vec<CodeExample>,
+
+    /// Related links
+    pub related_links: Vec<String>,
+}
+
+/// Field reference structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FieldReference {
+    /// Field name
+    pub field_name: String,
+
+    /// Field type
+    pub field_type: String,
+
+    /// Field description
+    pub description: String,
+
+    /// Whether field is required
+    pub required: bool,
+
+    /// Validation rules
+    pub validation_rules: Vec<String>,
+
+    /// Example values
+    pub example_values: Vec<String>,
+
+    /// Related fields
+    pub related_fields: Vec<String>,
+}
+
+/// Usage example structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageExample {
+    /// Example title
+    pub title: String,
+
+    /// Example description
+    pub description: String,
+
+    /// Example code or configuration
+    pub code: String,
+
+    /// Programming language or format
+    pub language: String,
+
+    /// Expected output
+    pub expected_output: Option<String>,
+
+    /// Notes and explanations
+    pub notes: Vec<String>,
+}
+
+/// Code example structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeExample {
+    /// Example title
+    pub title: String,
+
+    /// Code content
+    pub code: String,
+
+    /// Programming language
+    pub language: String,
+
+    /// Example description
+    pub description: Option<String>,
+}
+
+/// Troubleshooting item structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TroubleshootingItem {
+    /// Issue title
+    pub title: String,
+
+    /// Issue description
+    pub description: String,
+
+    /// Possible causes
+    pub causes: Vec<String>,
+
+    /// Solution steps
+    pub solutions: Vec<String>,
+
+    /// Related documentation links
+    pub related_links: Vec<String>,
+
+    /// Issue severity
+    pub severity: String,
+}
